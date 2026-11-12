@@ -237,6 +237,20 @@ defmodule BlindMixWeb.UserAuth do
     end
   end
 
+  # Administration : à placer après :require_authenticated (le scope est déjà chargé).
+  def on_mount(:require_admin, _params, _session, socket) do
+    if BlindMix.Admin.admin?(socket.assigns.current_scope.user) do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "Page réservée aux administrateurs.")
+        |> Phoenix.LiveView.redirect(to: ~p"/")
+
+      {:halt, socket}
+    end
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -265,6 +279,18 @@ defmodule BlindMixWeb.UserAuth do
 
   @doc "Page affichée après connexion : l'accueil, où le joueur choisit son service musical."
   def signed_in_path(_conn_or_socket), do: ~p"/"
+
+  @doc "Plug de l'administration : à placer après `require_authenticated_user`."
+  def require_admin(conn, _opts) do
+    if BlindMix.Admin.admin?(conn.assigns.current_scope.user) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Page réservée aux administrateurs.")
+      |> redirect(to: ~p"/")
+      |> halt()
+    end
+  end
 
   @doc """
   Plug for routes that require the user to be authenticated.

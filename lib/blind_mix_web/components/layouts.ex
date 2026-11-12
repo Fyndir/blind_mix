@@ -37,6 +37,14 @@ defmodule BlindMixWeb.Layouts do
 
       <nav class="bm-nav-links" id="nav-account">
         <%= if @current_scope && @current_scope.user do %>
+          <.link
+            :if={BlindMix.Admin.admin?(@current_scope.user)}
+            navigate={~p"/admin"}
+            class="bm-navlink"
+            id="nav-admin"
+          >
+            <.icon name="hero-shield-check-mini" class="size-4" /> Admin
+          </.link>
           <.link navigate={~p"/profile"} class="bm-pill" id="nav-profile">
             <.icon name="hero-user-circle-mini" class="size-5" /> Mon profil
           </.link>

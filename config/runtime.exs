@@ -37,6 +37,15 @@ config :blind_mix, :spotify,
   redirect_uri:
     System.get_env("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:4000/auth/spotify/callback")
 
+# Comptes admins (page /admin et LiveDashboard) : e-mails séparés par des virgules.
+# En développement, sans cette variable, tout compte connecté est admin.
+config :blind_mix,
+       :admin_emails,
+       System.get_env("ADMIN_EMAILS", "")
+       |> String.split([",", ";", " "], trim: true)
+       |> Enum.map(&String.downcase/1)
+       |> Enum.uniq()
+
 # Expéditeur des e-mails de connexion.
 config :blind_mix,
        :mail_from,

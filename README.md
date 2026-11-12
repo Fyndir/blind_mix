@@ -117,6 +117,7 @@ mix phx.server            # http://localhost:4000
 - Les e-mails de connexion s'affichent sur [`/dev/mailbox`](http://localhost:4000/dev/mailbox).
 - Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example) : un service n'est proposé que si ses deux clés sont renseignées (sinon son bouton est masqué et son lien direct renvoie à l'accueil).
 - En développement (ou avec `DEV_TOOLS=true`), des boutons 🛠 permettent de simuler une piste trouvée ou de terminer une manche, en solo comme en room (la piste est alors créditée au joueur qui clique).
+- En développement, sans `ADMIN_EMAILS`, tout compte connecté a accès à [`/admin`](http://localhost:4000/admin) et à la supervision [`/admin/dashboard`](http://localhost:4000/admin/dashboard) (voir [Administration](#administration)).
 - Après une modification de `config/` ou des dépendances (`mix.lock`), il faut redémarrer `mix phx.server` : sinon chaque page renvoie une erreur 500 « You must restart your server ».
 
 Tests et vérifications avant commit :
@@ -171,6 +172,8 @@ Ce qui est géré automatiquement :
 - **Connexion à Neon :** TLS est activé d'après le `sslmode` de l'URL.
 - **Retours OAuth :** les URL de retour Deezer et Spotify valent `https://<domaine>/auth/<service>/callback`. Déclare-les dans leurs applications.
 
+Pour accéder à l'administration, ajoute `ADMIN_EMAILS` (ton e-mail de compte) dans l'onglet **Environment** du service.
+
 Limites de l'offre gratuite :
 
 - Le service s'endort après 15 minutes sans visite. Le réveil prend environ 30 secondes, et les rooms en cours sont perdues.
@@ -187,10 +190,41 @@ Toutes sont optionnelles (voir [`.env.example`](.env.example)) :
 | `SECRET_KEY_BASE` | Clé de signature des sessions (`mix phx.gen.secret`) |
 | `MAIL_PROVIDER` | `resend`, `brevo`, `postmark` (avec `MAIL_API_KEY`) ou `smtp` (avec `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`). Active la connexion par lien magique. |
 | `MAIL_FROM` | Adresse d'expédition des e-mails |
+| `ADMIN_EMAILS` | E-mails des comptes administrateurs, séparés par des virgules (accès à `/admin`) |
 | `DEEZER_APP_ID`, `DEEZER_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Applications OAuth des services musicaux |
 
 > Sans service mail, il n'y a pas de « mot de passe oublié » : un joueur qui perd le sien doit recréer un profil.
 
+## Administration
+
+Les comptes dont l'e-mail figure dans `ADMIN_EMAILS` voient un lien **Admin** dans l'en-tête. Les autres sont renvoyés à l'accueil, et les visiteurs non connectés vers la page de connexion. La page **`/admin`** se met à jour toutes les 5 secondes et montre :
+
+- **Statistiques :** comptes (et inscriptions sur 7 jours), manches (et manches sur 24 h), pistes jouées, rooms ouvertes.
+- **Rooms ouvertes :** leur état et les joueurs connectés. **Fermer** une room renvoie ses joueurs à l'accueil.
+- **Comptes :** recherche par e-mail, nombre de manches, date de la dernière. **Supprimer** efface le compte et tout son historique, et coupe ses sessions ouvertes. Un admin ne peut pas supprimer son propre compte.
+
+Le bouton **Supervision** ouvre [Phoenix LiveDashboard](https://hexdocs.pm/phoenix_live_dashboard) sur `/admin/dashboard`. Il montre la mémoire et le CPU de la VM Erlang, les processus (dont une room par processus `BlindMix.Rooms.Server`), les métriques de requêtes et les logs en direct.
+
+### Logs
+
+Chaque événement important tient sur une ligne, préfixée par son domaine. Les comptes y sont désignés par leur numéro, jamais par leur e-mail. Exemples tirés de l'onglet **Logs** de Render :
+
+```
+[info] [démarrage] Blind Mix 0.1.0 prêt sur https://blind-mix.onrender.com
+[info] [démarrage] base : externe (ep-….neon.tech) en TLS · mail : désactivé (connexion par mot de passe) · services : demo · admins : 1 · outils de dev : non
+[info] [compte] inscription du compte 12 (mot de passe)
+[info] [compte] connexion du compte 12 (mot de passe)
+[info] [oauth] deezer connecté (compte 12)
+[info] [solo demo · compte 12] manche 1 terminée : 4/5 trouvées, +17 pts
+[info] [room K7RX2] Alice arrive (anonyme) · 2 joueur(s) connecté(s)
+[info] [room K7RX2] manche 2 lancée : 5 pistes (2 en commun, 1 likes, 2 tubes)
+[info] [room K7RX2] manche 2 terminée : 4/5 trouvées · Alice +12, Bob +5
+[warning] [room K7RX2] manche 3 annulée : pas assez d'extraits audio
+[info] [admin] room K7RX2 fermée par l'admin 1
+```
+
+Les préfixes sont `[démarrage]`, `[compte]`, `[oauth]`, `[solo …]`, `[room CODE]` et `[admin]`. Pour suivre une partie, filtre sur le code de sa room. Les erreurs d'API externes (Deezer, Spotify) sont en `[warning]` ou `[error]`.
+
 ## Stack
 
-Phoenix 1.8 et LiveView (rooms multijoueur : un processus par room, PubSub), PostgreSQL (Ecto), authentification par lien magique ou mot de passe (`phx.gen.auth`), Swoosh pour les e-mails, Req pour les API Deezer et Spotify.
+Phoenix 1.8 et LiveView (rooms multijoueur : un processus par room, PubSub), PostgreSQL (Ecto), authentification par lien magique ou mot de passe (`phx.gen.auth`), Swoosh pour les e-mails, Req pour les API Deezer et Spotify, Phoenix LiveDashboard pour la supervision.

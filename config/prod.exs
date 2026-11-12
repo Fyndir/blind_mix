@@ -28,5 +28,9 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+# Logs lisibles dans la console de l'hébergeur (Render horodate déjà chaque ligne) :
+#   [info] [room K7RX2] manche 2 lancée : 5 pistes (2 en commun, 3 tubes)
+config :logger, :default_formatter, format: "[$level] $message\n"
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

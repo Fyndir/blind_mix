@@ -1,6 +1,8 @@
 defmodule BlindMixWeb.AuthController do
   use BlindMixWeb, :controller
 
+  require Logger
+
   alias BlindMix.Providers
 
   # GET /auth/:provider  ("deezer" ou "spotify") : redirige vers la page d'autorisation OAuth 2.
@@ -27,12 +29,14 @@ defmodule BlindMixWeb.AuthController do
   def callback(conn, %{"provider" => name, "code" => code, "state" => state}) do
     expected = get_session(conn, :oauth_state)
 
-    with {:ok, provider} <- Providers.fetch_available(name),
-         true <-
-           is_binary(expected) and is_binary(state) and
-             Plug.Crypto.secure_compare(state, expected),
-         {:ok, token} <- provider.fetch_token(code) do
+    with {:provider, {:ok, provider}} <- {:provider, Providers.fetch_available(name)},
+         {:state, true} <-
+           {:state,
+            is_binary(expected) and is_binary(state) and
+              Plug.Crypto.secure_compare(state, expected)},
+         {:token, {:ok, token}} <- {:token, provider.fetch_token(code)} do
       return_to = get_session(conn, :oauth_return_to) || ~p"/play"
+      Logger.info("[oauth] #{name} connecté (#{who(conn)})")
 
       conn
       |> delete_session(:oauth_state)
@@ -42,11 +46,29 @@ defmodule BlindMixWeb.AuthController do
       |> put_session(:access_token, token)
       |> redirect(to: return_to)
     else
-      _ -> failure(conn)
+      {:provider, _} ->
+        Logger.warning("[oauth] #{inspect(name)} : service inconnu ou sans clés")
+        failure(conn)
+
+      {:state, _} ->
+        Logger.warning("[oauth] #{name} : state invalide (session expirée ou requête forgée)")
+        failure(conn)
+
+      {:token, error} ->
+        Logger.error("[oauth] #{name} : échange du code refusé : #{inspect(error, limit: 10)}")
+        failure(conn)
     end
   end
 
-  def callback(conn, _params), do: failure(conn)
+  # Sans `code` : le joueur a refusé l'autorisation (ou le service a renvoyé une erreur).
+  def callback(conn, %{"provider" => name} = params) do
+    # Valeurs venues de l'URL : inspect/1 les échappe (pas de faux retour à la ligne dans les logs).
+    Logger.info(
+      "[oauth] #{inspect(name)} : autorisation refusée (#{inspect(params["error"] || "sans code")})"
+    )
+
+    failure(conn)
+  end
 
   # Quitte seulement le service musical : le compte Blind Mix reste connecté.
   def logout(conn, _params) do
@@ -62,6 +84,13 @@ defmodule BlindMixWeb.AuthController do
   end
 
   defp safe_return_to(_path), do: nil
+
+  defp who(conn) do
+    case conn.assigns[:current_scope] do
+      %{user: %{id: id}} -> "compte #{id}"
+      _ -> "anonyme"
+    end
+  end
 
   defp failure(conn) do
     conn

@@ -37,21 +37,39 @@ defmodule BlindMixWeb.Router do
   #   pipe_through :api
   # end
 
-  # Enable LiveDashboard in development
+  # Boîte mail de développement.
   if Application.compile_env(:blind_mix, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
-    import Phoenix.LiveDashboard.Router
-
     scope "/dev" do
       pipe_through :browser
 
-      live_dashboard "/dashboard", metrics: BlindMixWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  ## Administration (comptes listés dans ADMIN_EMAILS ; tout compte connecté en dev)
+
+  import Phoenix.LiveDashboard.Router
+
+  # Pipeline :browser + compte connecté + admin : les deux plugs redirigent sinon.
+  # live_session dédiée, car ses on_mount ajoutent :require_admin.
+  scope "/admin" do
+    pipe_through [:browser, :require_authenticated_user, :require_admin]
+
+    live_session :admin,
+      on_mount: [
+        {BlindMixWeb.UserAuth, :require_authenticated},
+        {BlindMixWeb.UserAuth, :require_admin}
+      ] do
+      live "/", BlindMixWeb.AdminLive, :index
+    end
+
+    # Supervision Phoenix LiveDashboard : mémoire, processus, requêtes, logs en direct.
+    live_dashboard "/dashboard",
+      metrics: BlindMixWeb.Telemetry,
+      on_mount: [
+        {BlindMixWeb.UserAuth, :require_authenticated},
+        {BlindMixWeb.UserAuth, :require_admin}
+      ]
   end
 
   ## Authentication routes

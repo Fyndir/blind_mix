@@ -46,3 +46,6 @@ config :blind_mix, :extra_providers, %{"fake" => BlindMix.FakeProvider}
 # trouvant toutes les pistes).
 config :blind_mix, :room_music, BlindMix.FakeMusic
 config :blind_mix, :room_tick_ms, :timer.minutes(10)
+
+# Pas de résumé de configuration au démarrage des tests.
+config :blind_mix, :startup_log, false

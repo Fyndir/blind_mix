@@ -192,6 +192,20 @@ defmodule BlindMixWeb.Pop do
   @keyframes bm-bump{0%{transform:scale(1)}40%{transform:scale(1.55);color:#fff}100%{transform:scale(1)}}
   @keyframes bm-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
   @keyframes bm-in{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+  .bm-admin-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.8rem 1rem}
+  .bm-admin-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+  .bm-admin-row{display:flex;align-items:center;gap:.8rem;padding:.7rem .9rem;border-radius:1rem;background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.08);transition:border-color .15s,background .15s}
+  .bm-admin-row:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.08)}
+  .bm-admin-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.2rem}
+  .bm-admin-email{font-weight:800;overflow-wrap:anywhere;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  .bm-admin-chip{background:var(--bm-violet);color:var(--bm-deep);font-size:.7rem;padding:.1rem .5rem}
+  .bm-admin-meta{color:#b9acdf;font-size:.85rem}
+  .bm-admin-code{text-decoration:none;align-self:flex-start;font-size:1rem}
+  .bm-admin-search{width:min(16rem,100%);padding:.55rem 1rem;border-radius:999px;border:2px solid transparent;background:#fff;color:var(--bm-deep);font-weight:700;font-size:.95rem}
+  .bm-admin-search:focus{outline:none;border-color:var(--bm-pink)}
+  .bm-admin-danger{flex:none;cursor:pointer;padding:.45rem .9rem;border-radius:999px;border:2px solid var(--bm-pink);background:transparent;color:#ffc2d6;font-weight:800;font-size:.85rem;transition:background .15s,color .15s,transform .08s}
+  .bm-admin-danger:hover{background:var(--bm-pink);color:#fff}
+  .bm-admin-danger:active{transform:translateY(1px)}
   @media (prefers-reduced-motion: reduce){.bm-player,.bm-player-delta,.bm-feed li,.bm-round,.bm-artist-bar i,.bm-logo,.bm-tile,.bm-slot,.bm-score-num,.bm-banner,.bm-float,.bm-eq i,.bm-timer--low,.bm-feedback,.bm-form.bm-shake{animation:none!important}}
   """
 

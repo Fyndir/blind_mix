@@ -69,6 +69,14 @@ defmodule BlindMix.Rooms do
 
   def state(code), do: call(code, :state)
 
+  @doc "Codes des rooms ouvertes."
+  def list_codes do
+    Registry.select(BlindMix.Rooms.Registry, [{{:"$1", :_, :_}, [], [:"$1"]}])
+  end
+
+  @doc "Ferme la room (administration) : les joueurs présents sont renvoyés à l'accueil."
+  def close(code), do: call(code, :close)
+
   defp call(code, message) do
     GenServer.call(Server.via(code), message)
   catch

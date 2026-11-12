@@ -53,6 +53,7 @@ defmodule BlindMix.Rooms.Server do
       idle_ref: nil
     }
 
+    log(state, :info, "créée")
     {:ok, state |> run_task(:hits, fn -> state.music.hits() end) |> schedule_idle()}
   end
 
@@ -62,6 +63,9 @@ defmodule BlindMix.Rooms.Server do
   def handle_call({:join, info, pid}, _from, state) do
     ref = Process.monitor(pid)
     new? = not Map.has_key?(state.players, info.id)
+
+    back? =
+      match?({:ok, %{pids: pids}} when map_size(pids) == 0, Map.fetch(state.players, info.id))
 
     player =
       case Map.fetch(state.players, info.id) do
@@ -88,6 +92,17 @@ defmodule BlindMix.Rooms.Server do
       |> refresh_common()
       |> broadcast()
 
+    cond do
+      new? ->
+        log(state, :info, "#{player.name} arrive (#{who(player)}) · #{connected_label(state)}")
+
+      back? ->
+        log(state, :info, "#{player.name} revient · #{connected_label(state)}")
+
+      true ->
+        :ok
+    end
+
     {:reply, {:ok, public(state)}, state}
   end
 
@@ -95,6 +110,7 @@ defmodule BlindMix.Rooms.Server do
     case Map.fetch(state.players, id) do
       {:ok, player} ->
         player = put_likes(player, status)
+        log_likes(state, player, status)
 
         state =
           %{state | players: Map.put(state.players, id, player)}
@@ -118,6 +134,13 @@ defmodule BlindMix.Rooms.Server do
       when status in [:lobby, :finished] do
     players = state.players |> Map.values() |> Enum.filter(&Player.connected?/1)
     %{pool: pool, played: played, music: music} = state
+
+    log(
+      state,
+      :info,
+      "manche #{state.round_id + 1} : préparation pour #{length(players)} joueur(s), " <>
+        "#{length(pool)} titres en réserve"
+    )
 
     state =
       %{state | status: :preparing, error: nil}
@@ -168,6 +191,12 @@ defmodule BlindMix.Rooms.Server do
 
   def handle_call(:state, _from, state), do: {:reply, public(state), state}
 
+  def handle_call(:close, _from, state) do
+    log(state, :info, "fermée par un admin")
+    Phoenix.PubSub.broadcast(BlindMix.PubSub, "room:" <> state.code, {:room_closed, state.code})
+    {:stop, :normal, :ok, state}
+  end
+
   # --- Messages ------------------------------------------------------------------
 
   @impl true
@@ -197,7 +226,7 @@ defmodule BlindMix.Rooms.Server do
   def handle_info({:DOWN, ref, :process, _pid, reason}, state)
       when is_map_key(state.tasks, ref) do
     {kind, tasks} = Map.pop(state.tasks, ref)
-    Logger.warning("Room #{state.code} : tâche #{inspect(kind)} interrompue (#{inspect(reason)})")
+    log(state, :warning, "tâche #{inspect(kind)} interrompue : #{inspect(reason)}")
     {:noreply, task_done(%{state | tasks: tasks}, kind, {:error, reason})}
   end
 
@@ -214,6 +243,8 @@ defmodule BlindMix.Rooms.Server do
           if Player.connected?(player) do
             state
           else
+            log(state, :info, "#{player.name} est parti · #{connected_label(state)}")
+
             state
             |> feed("🚪 #{player.name} a quitté la room")
             |> elect_host()
@@ -229,6 +260,12 @@ defmodule BlindMix.Rooms.Server do
     if Enum.any?(state.players, fn {_id, p} -> Player.connected?(p) end) do
       {:noreply, %{state | idle_ref: nil}}
     else
+      log(
+        state,
+        :info,
+        "fermée : plus aucun joueur connecté depuis #{div(idle_ms(), 60_000)} min"
+      )
+
       {:stop, :normal, state}
     end
   end
@@ -269,7 +306,11 @@ defmodule BlindMix.Rooms.Server do
   end
 
   defp task_done(state, :hits, {:ok, hits}) when is_list(hits), do: add_to_pool(state, hits)
-  defp task_done(state, :hits, _error), do: state
+
+  defp task_done(state, :hits, error) do
+    log(state, :warning, "tubes du moment indisponibles : #{inspect(error, limit: 10)}")
+    state
+  end
 
   defp task_done(state, {:round, _previous}, {:ok, tracks, new_hits}) do
     round_id = state.round_id + 1
@@ -288,6 +329,7 @@ defmodule BlindMix.Rooms.Server do
         played: Enum.reduce(tracks, state.played, &MapSet.put(&2, Picker.key(&1)))
     }
     |> add_to_pool(new_hits)
+    |> tap(&log(&1, :info, "manche #{round_id} lancée : #{origins_label(tracks)}"))
     |> feed("▶ Manche #{round_id} : 5 pistes, #{Game.round_seconds()} secondes !")
     |> schedule_tick()
     |> broadcast()
@@ -295,6 +337,12 @@ defmodule BlindMix.Rooms.Server do
 
   defp task_done(state, {:round, previous}, error) do
     hits = if match?({:error, _, hits} when is_list(hits), error), do: elem(error, 2), else: []
+
+    log(
+      state,
+      :warning,
+      "manche #{state.round_id + 1} annulée : #{inspect(error, limit: 3, printable_limit: 60)}"
+    )
 
     %{
       state
@@ -306,10 +354,14 @@ defmodule BlindMix.Rooms.Server do
   end
 
   defp task_done(state, :expand, tracks) when is_list(tracks) do
+    log(state, :info, "recherche élargie : #{length(tracks)} titres d'artistes proches")
     state |> add_to_pool(tracks) |> broadcast()
   end
 
-  defp task_done(state, :expand, _error), do: state
+  defp task_done(state, :expand, error) do
+    log(state, :warning, "recherche élargie impossible : #{inspect(error, limit: 10)}")
+    state
+  end
 
   defp apply_hits(state, player_id, hits) do
     Enum.reduce(hits, state, fn {kind, track, points}, acc ->
@@ -344,6 +396,15 @@ defmodule BlindMix.Rooms.Server do
         {id, %{player | taste: Taste.record(player.taste, results, now)}}
       end)
 
+    found = map_size(state.found_by)
+
+    log(
+      state,
+      :info,
+      "manche #{state.round_id} terminée : #{found}/#{length(game.tracks)} trouvées · " <>
+        scores_label(players)
+    )
+
     %{state | game: game, status: :finished, players: players}
     |> feed(winner_text(players))
     |> expand_search()
@@ -362,7 +423,7 @@ defmodule BlindMix.Rooms.Server do
     History.record_results(Scope.for_user(player.user), @history_provider, results)
   rescue
     error ->
-      Logger.error("Room : historique non enregistré pour #{player.id} : #{inspect(error)}")
+      Logger.error("[room] historique non enregistré pour #{player.id} : #{inspect(error)}")
   end
 
   defp winner_text(players) do
@@ -450,9 +511,15 @@ defmodule BlindMix.Rooms.Server do
         |> Enum.min_by(& &1.joined_at, fn -> nil end)
 
       case next do
-        nil -> state
-        player when is_nil(state.host_id) -> %{state | host_id: player.id}
-        player -> %{state | host_id: player.id} |> feed("👑 #{player.name} devient l'hôte")
+        nil ->
+          state
+
+        player when is_nil(state.host_id) ->
+          %{state | host_id: player.id}
+
+        player ->
+          log(state, :info, "#{player.name} devient l'hôte")
+          %{state | host_id: player.id} |> feed("👑 #{player.name} devient l'hôte")
       end
     end
   end
@@ -460,6 +527,57 @@ defmodule BlindMix.Rooms.Server do
   defp refresh_common(state) do
     players = state.players |> Map.values() |> Enum.filter(&Player.connected?/1)
     %{state | common_count: Picker.common_count(players)}
+  end
+
+  # --- Logs ----------------------------------------------------------------------
+
+  # Une ligne par événement, préfixée par la room : `[room K7RX2] manche 2 lancée : ...`.
+  # Les joueurs y figurent par leur pseudo et, s'ils ont un compte, par son numéro.
+  defp log(state, level, message), do: Logger.log(level, "[room #{state.code}] #{message}")
+
+  defp log_likes(state, player, {:ready, likes, source}),
+    do: log(state, :info, "likes de #{player.name} : #{length(likes)} titres (#{source})")
+
+  defp log_likes(state, player, :error),
+    do: log(state, :warning, "likes de #{player.name} : chargement impossible")
+
+  defp log_likes(_state, _player, _status), do: :ok
+
+  defp who(%Player{user: nil}), do: "anonyme"
+  defp who(%Player{user: user}), do: "compte #{user.id}"
+
+  defp connected_label(state) do
+    n = Enum.count(state.players, fn {_id, p} -> Player.connected?(p) end)
+    "#{n} joueur(s) connecté(s)"
+  end
+
+  # « Alice +7, Bob +2 » : points de la manche, du meilleur au moins bon.
+  defp scores_label(players) do
+    players
+    |> Map.values()
+    |> Enum.filter(&(&1.round_points > 0))
+    |> Enum.sort_by(& &1.round_points, :desc)
+    |> Enum.map_join(", ", &"#{&1.name} +#{&1.round_points}")
+    |> case do
+      "" -> "personne n'a marqué"
+      text -> text
+    end
+  end
+
+  @origin_labels [common: "en commun", likes: "likes", hits: "tubes"]
+
+  defp origins_label(tracks) do
+    counts = Enum.frequencies_by(tracks, &Map.get(&1, :origin))
+
+    parts =
+      for {origin, label} <- @origin_labels,
+          (n = Map.get(counts, origin, 0)) > 0,
+          do: "#{n} #{label}"
+
+    case parts do
+      [] -> "#{length(tracks)} pistes"
+      parts -> "#{length(tracks)} pistes (" <> Enum.join(parts, ", ") <> ")"
+    end
   end
 
   # --- Outils --------------------------------------------------------------------

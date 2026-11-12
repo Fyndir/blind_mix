@@ -1,6 +1,8 @@
 defmodule BlindMixWeb.UserSessionController do
   use BlindMixWeb, :controller
 
+  require Logger
+
   alias BlindMix.Accounts
   alias BlindMixWeb.UserAuth
 
@@ -22,12 +24,15 @@ defmodule BlindMixWeb.UserSessionController do
     case Accounts.login_user_by_magic_link(token) do
       {:ok, {user, tokens_to_disconnect}} ->
         UserAuth.disconnect_sessions(tokens_to_disconnect)
+        Logger.info("[compte] connexion du compte #{user.id} (lien magique)")
 
         conn
         |> put_flash(:info, info)
         |> UserAuth.log_in_user(user, user_params)
 
       _ ->
+        Logger.info("[compte] lien de connexion invalide ou expiré")
+
         conn
         |> put_flash(:error, "Ce lien n'est pas valide ou a expiré.")
         |> redirect(to: ~p"/users/log-in")
@@ -39,11 +44,15 @@ defmodule BlindMixWeb.UserSessionController do
     %{"email" => email, "password" => password} = user_params
 
     if user = Accounts.get_user_by_email_and_password(email, password) do
+      Logger.info("[compte] connexion du compte #{user.id} (mot de passe)")
+
       conn
       |> put_flash(:info, info)
       |> UserAuth.log_in_user(user, user_params)
     else
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
+      Logger.info("[compte] échec de connexion par mot de passe")
+
       conn
       |> put_flash(:error, "E-mail ou mot de passe incorrect")
       |> put_flash(:email, String.slice(email, 0, 160))
@@ -65,6 +74,10 @@ defmodule BlindMixWeb.UserSessionController do
   end
 
   def delete(conn, _params) do
+    if user = conn.assigns.current_scope && conn.assigns.current_scope.user do
+      Logger.info("[compte] déconnexion du compte #{user.id}")
+    end
+
     conn
     |> put_flash(:info, "Déconnexion réussie. À bientôt !")
     |> UserAuth.log_out_user()

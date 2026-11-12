@@ -107,7 +107,10 @@ defmodule BlindMixWeb.RoomLive do
   end
 
   def handle_async(:likes, failure, socket) do
-    Logger.error("Room : likes impossibles à charger : #{inspect(failure, limit: 20)}")
+    Logger.error(
+      "[room #{socket.assigns.code}] likes impossibles à charger : #{inspect(failure, limit: 20)}"
+    )
+
     Rooms.set_likes(socket.assigns.code, socket.assigns.me, :error)
     {:noreply, socket}
   end
@@ -116,6 +119,15 @@ defmodule BlindMixWeb.RoomLive do
 
   @impl true
   def handle_info({:room, room}, socket), do: {:noreply, apply_room(socket, room)}
+
+  # Room fermée depuis l'administration.
+  def handle_info({:room_closed, _code}, socket) do
+    {:noreply,
+     socket
+     |> push_event("mix:stop_all", %{})
+     |> put_flash(:error, "Cette room a été fermée.")
+     |> push_navigate(to: ~p"/")}
+  end
 
   # Compare l'ancien et le nouvel état pour piloter le son et les effets.
   defp apply_room(socket, new) do

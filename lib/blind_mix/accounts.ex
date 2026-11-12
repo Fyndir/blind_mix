@@ -4,6 +4,7 @@ defmodule BlindMix.Accounts do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias BlindMix.Repo
 
   alias BlindMix.Accounts.{User, UserToken, UserNotifier}
@@ -78,6 +79,7 @@ defmodule BlindMix.Accounts do
     %User{}
     |> User.email_changeset(attrs)
     |> Repo.insert()
+    |> log_registration("lien magique")
   end
 
   @doc """
@@ -91,7 +93,16 @@ defmodule BlindMix.Accounts do
     %User{}
     |> User.registration_changeset(attrs)
     |> Repo.insert()
+    |> log_registration("mot de passe")
   end
+
+  # Les logs désignent les comptes par leur numéro, jamais par leur e-mail.
+  defp log_registration({:ok, user} = result, method) do
+    Logger.info("[compte] inscription du compte #{user.id} (#{method})")
+    result
+  end
+
+  defp log_registration(result, _method), do: result
 
   @doc "Changeset du formulaire d'inscription avec mot de passe (validation en direct)."
   def change_user_registration(%User{} = user, attrs \\ %{}, opts \\ []) do

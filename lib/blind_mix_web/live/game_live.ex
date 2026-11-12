@@ -52,6 +52,8 @@ defmodule BlindMixWeb.GameLive do
 
   @impl true
   def handle_async(:likes, {:ok, {:ok, likes}}, socket) do
+    log(socket, :info, "likes chargés : #{length(likes)} titres")
+
     if length(likes) < Game.round_size() do
       {:noreply, assign(socket, error: "Il te faut au moins #{Game.round_size()} titres likés.")}
     else
@@ -60,7 +62,7 @@ defmodule BlindMixWeb.GameLive do
   end
 
   def handle_async(:likes, failure, socket) do
-    Logger.error("Chargement des titres impossible : #{inspect(failure, limit: 20)}")
+    log(socket, :error, "likes impossibles à charger : #{inspect(failure, limit: 20)}")
     {:noreply, assign(socket, error: "Impossible de lire tes titres likés. Reconnecte-toi.")}
   end
 
@@ -70,6 +72,7 @@ defmodule BlindMixWeb.GameLive do
     round_id = socket.assigns.round_id + 1
     previous_score = if socket.assigns.game, do: socket.assigns.game.score, else: 0
     Process.send_after(self(), {:tick, round_id}, 1000)
+    log(socket, :info, "manche #{round_id} lancée")
 
     {:noreply,
      socket
@@ -85,7 +88,13 @@ defmodule BlindMixWeb.GameLive do
      |> push_event("mix:start", %{tracks: Enum.map(tracks, &%{id: &1.id, url: &1.preview_url})})}
   end
 
-  def handle_async(:round, _failure, socket) do
+  def handle_async(:round, failure, socket) do
+    log(
+      socket,
+      :warning,
+      "manche #{socket.assigns.round_id + 1} annulée : #{inspect(failure, limit: 3, printable_limit: 60)}"
+    )
+
     {:noreply,
      assign(socket,
        preparing: false,
@@ -205,6 +214,26 @@ defmodule BlindMixWeb.GameLive do
     |> record_round()
   end
 
+  # --- Logs -----------------------------------------------------------------
+
+  # `[solo deezer · compte 12] manche 3 terminée : 4/5 trouvées, +17 pts`
+  defp log(socket, level, message) do
+    who =
+      case user_scope(socket) do
+        %{user: user} -> "compte #{user.id}"
+        nil -> "anonyme"
+      end
+
+    Logger.log(level, "[solo #{socket.assigns.provider_name} · #{who}] #{message}")
+  end
+
+  defp round_points(game) do
+    Enum.sum_by(game.found, fn
+      {_id, :title} -> Game.title_points()
+      {_id, :artist} -> Game.artist_points()
+    end)
+  end
+
   # --- Profil ---------------------------------------------------------------
 
   defp user_scope(%{assigns: %{current_scope: %{user: %{}} = scope}}), do: scope
@@ -225,6 +254,14 @@ defmodule BlindMixWeb.GameLive do
   defp record_round(%{assigns: %{game: %Game{status: :finished}, round_id: id}} = socket)
        when socket.assigns.recorded_round != id do
     socket = assign(socket, recorded_round: id)
+    game = socket.assigns.game
+
+    log(
+      socket,
+      :info,
+      "manche #{id} terminée : #{map_size(game.found)}/#{length(game.tracks)} trouvées, " <>
+        "+#{round_points(game)} pts"
+    )
 
     with %{} = scope <- user_scope(socket),
          {:ok, _round} <-
