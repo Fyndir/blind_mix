@@ -13,6 +13,7 @@ const SILENCE =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 const POOL_SIZE = 5;
 const MAX_START_OFFSET = 8; // secondes : décalage aléatoire dans l'extrait de 30 s
+const DUCK_LEVEL = 0.3; // part du volume de la musique gardée pendant un effet sonore
 const CONFETTI_COLORS = ["#ff4d8d", "#ffd23f", "#2de2e6", "#5cff9d", "#a66cff", "#ff8a3d"];
 
 export const AudioMix = {
@@ -71,6 +72,9 @@ export const AudioMix = {
 
     // Volume par piste réduit pour éviter la saturation quand tout joue ensemble.
     const volume = Math.min(1, 1.4 / Math.sqrt(tracks.length));
+    this.musicVolume = volume;
+    clearTimeout(this.duckTimer);
+    clearInterval(this.duckRamp);
 
     tracks.forEach((track, i) => {
       const audio = this.pool[i];
@@ -117,7 +121,21 @@ export const AudioMix = {
     try {
       if (!this.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) this.ctx = new AC();
+        if (AC) {
+          this.ctx = new AC();
+          // Bus des effets : compresseur (évite la saturation quand les notes se
+          // superposent) puis gain général, au-dessus du niveau de la musique.
+          const comp = this.ctx.createDynamicsCompressor();
+          comp.threshold.value = -12;
+          comp.knee.value = 6;
+          comp.ratio.value = 6;
+          comp.attack.value = 0.003;
+          comp.release.value = 0.15;
+          this.fxBus = this.ctx.createGain();
+          this.fxBus.gain.value = 1.4;
+          comp.connect(this.fxBus).connect(this.ctx.destination);
+          this.fxIn = comp;
+        }
       }
       if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
     } catch (_) {
@@ -142,7 +160,7 @@ export const AudioMix = {
     amp.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
     amp.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
-    osc.connect(amp).connect(ctx.destination);
+    osc.connect(amp).connect(this.fxIn || ctx.destination);
     osc.start(t0);
     osc.stop(t0 + dur + 0.02);
   },
@@ -150,24 +168,46 @@ export const AudioMix = {
   sfx(name) {
     switch (name) {
       case "title": // arpège montant, victoire complète
+        this.duck(650);
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
-          this.tone(f, i * 0.07, 0.24, { type: "triangle", gain: 0.22 })
+          this.tone(f, i * 0.07, 0.24, { type: "triangle", gain: 0.6 })
         );
         break;
       case "artist": // deux notes, bonne réponse partielle
-        this.tone(659.25, 0, 0.14, { type: "triangle", gain: 0.2 });
-        this.tone(987.77, 0.09, 0.26, { type: "triangle", gain: 0.2 });
+        this.duck(450);
+        this.tone(659.25, 0, 0.14, { type: "triangle", gain: 0.55 });
+        this.tone(987.77, 0.09, 0.26, { type: "triangle", gain: 0.55 });
         break;
       case "miss": // petit "bzzt" grave
-        this.tone(220, 0, 0.22, { type: "sawtooth", gain: 0.07, slideTo: 110 });
+        this.duck(300);
+        this.tone(220, 0, 0.22, { type: "sawtooth", gain: 0.22, slideTo: 110 });
         break;
       case "end": // fanfare de fin de manche
+        this.duck(1200);
         [392, 523.25, 659.25, 783.99].forEach((f, i) =>
-          this.tone(f, i * 0.12, 0.35, { type: "square", gain: 0.07 })
+          this.tone(f, i * 0.12, 0.35, { type: "square", gain: 0.2 })
         );
-        this.tone(1046.5, 0.5, 0.6, { type: "triangle", gain: 0.2 });
+        this.tone(1046.5, 0.5, 0.6, { type: "triangle", gain: 0.55 });
         break;
     }
+  },
+
+  // Baisse la musique le temps d'un effet sonore, puis la remonte en douceur :
+  // le feedback reste audible même quand les 5 pistes jouent fort.
+  duck(ms) {
+    const base = this.musicVolume || 1;
+    this.active.forEach((audio) => (audio.volume = base * DUCK_LEVEL));
+
+    clearTimeout(this.duckTimer);
+    clearInterval(this.duckRamp);
+    this.duckTimer = setTimeout(() => {
+      let level = DUCK_LEVEL;
+      this.duckRamp = setInterval(() => {
+        level = Math.min(1, level + 0.1);
+        this.active.forEach((audio) => (audio.volume = base * level));
+        if (level >= 1) clearInterval(this.duckRamp);
+      }, 30);
+    }, ms);
   },
 
   found(id, kind) {
@@ -180,7 +220,8 @@ export const AudioMix = {
 
   miss() {
     this.sfx("miss");
-    const form = document.getElementById("guess-form");
+    // Formulaire de saisie, en solo (#guess-form) comme en room (#room-guess-form).
+    const form = this.el.querySelector(".bm-form");
     if (!form) return;
     form.classList.remove("bm-shake");
     void form.offsetWidth; // relance l'animation
