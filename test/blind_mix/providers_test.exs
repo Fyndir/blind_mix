@@ -1,7 +1,7 @@
 defmodule BlindMix.ProvidersTest do
   use ExUnit.Case, async: false
 
-  alias BlindMix.Providers
+  alias BlindMix.{ProviderConfig, Providers}
 
   test "retrouve les fournisseurs connus" do
     assert {:ok, BlindMix.Deezer} = Providers.fetch("deezer")
@@ -25,13 +25,13 @@ defmodule BlindMix.ProvidersTest do
   end
 
   test "les URL d'autorisation contiennent le state et le bon client" do
-    Application.put_env(:blind_mix, :spotify,
+    ProviderConfig.put(:spotify,
       client_id: "sp_id",
       client_secret: "sp_secret",
       redirect_uri: "http://127.0.0.1:4000/auth/spotify/callback"
     )
 
-    Application.put_env(:blind_mix, :deezer,
+    ProviderConfig.put(:deezer,
       app_id: "dz_id",
       secret: "dz_secret",
       redirect_uri: "http://127.0.0.1:4000/auth/deezer/callback"
@@ -47,5 +47,30 @@ defmodule BlindMix.ProvidersTest do
     assert deezer =~ "connect.deezer.com/oauth/auth.php"
     assert deezer =~ "app_id=dz_id"
     assert deezer =~ "state=abc"
+  end
+
+  describe "services sans clés OAuth" do
+    test "un service sans clés n'est pas disponible" do
+      ProviderConfig.unconfigure_all()
+
+      refute Providers.available?("deezer")
+      refute Providers.available?("spotify")
+      assert :error = Providers.fetch_available("deezer")
+      # Le mode démo n'a besoin d'aucune clé.
+      assert Providers.available?("demo")
+    end
+
+    test "les deux clés sont nécessaires, une chaîne vide compte comme absente" do
+      ProviderConfig.put(:deezer, app_id: "dz_id", secret: "  ")
+      refute Providers.available?("deezer")
+
+      ProviderConfig.put(:spotify, client_id: "sp_id", client_secret: "sp_secret")
+      assert {:ok, BlindMix.Spotify} = Providers.fetch_available("spotify")
+    end
+
+    test "un service inconnu n'est jamais disponible" do
+      refute Providers.available?("napster")
+      refute Providers.available?(nil)
+    end
   end
 end

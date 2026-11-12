@@ -67,7 +67,7 @@ mix phx.server            # http://localhost:4000
 ```
 
 - Les e-mails de connexion s'affichent sur [`/dev/mailbox`](http://localhost:4000/dev/mailbox).
-- Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example).
+- Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example) : un service n'est proposé que si ses deux clés sont renseignées (sinon son bouton est masqué et son lien direct renvoie à l'accueil).
 - En développement, des boutons 🛠 permettent de simuler une piste trouvée ou de terminer une manche.
 
 Tests et vérifications avant commit :

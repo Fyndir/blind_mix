@@ -11,7 +11,7 @@ defmodule BlindMixWeb.GameLive do
 
   @impl true
   def mount(_params, %{"access_token" => token, "provider" => name}, socket) do
-    case Providers.fetch(name) do
+    case Providers.fetch_available(name) do
       {:ok, provider} -> {:ok, setup(socket, provider, name, token)}
       :error -> {:ok, redirect(socket, to: ~p"/")}
     end

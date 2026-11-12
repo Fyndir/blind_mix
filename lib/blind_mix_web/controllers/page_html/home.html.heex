@@ -2,8 +2,8 @@
   <h1 class="bm-title bm-title--xl">Blind test multi-pistes</h1>
 
   <p class="bm-lead bm-center">
-    5 de tes titres likés jouent en même temps. Reconnais-les, tape l'artiste ou le titre,
-    et fais disparaître les pistes une à une !
+    5 {if @spotify? or @deezer?, do: "de tes titres likés", else: "titres du moment"} jouent en même temps.
+    Reconnais-les, tape l'artiste ou le titre, et fais disparaître les pistes une à une !
   </p>
 
   <%= if @current_scope && @current_scope.user do %>
@@ -34,14 +34,32 @@
     </div>
   </div>
 
-  <div :if={is_nil(@provider)} class="bm-row" id="home-providers">
-    <a href={~p"/auth/spotify"} class="bm-btn bm-btn--spotify">Se connecter avec Spotify</a>
-    <a href={~p"/auth/deezer"} class="bm-btn bm-btn--deezer">Se connecter avec Deezer</a>
-  </div>
+  <%= cond do %>
+    <% @provider -> %>
+    <% @spotify? or @deezer? -> %>
+      <div class="bm-row" id="home-providers">
+        <a
+          :if={@spotify?}
+          href={~p"/auth/spotify"}
+          class="bm-btn bm-btn--spotify"
+          id="home-spotify"
+        >
+          Se connecter avec Spotify
+        </a>
+        <a :if={@deezer?} href={~p"/auth/deezer"} class="bm-btn bm-btn--deezer" id="home-deezer">
+          Se connecter avec Deezer
+        </a>
+      </div>
 
-  <p :if={is_nil(@provider)} class="bm-lead bm-center" style="font-size:.95rem">
-    Pas de compte Deezer ou Spotify ?
-    <a href={~p"/auth/demo"} class="bm-link" id="home-demo">Essayer le mode démo</a>
-    (titres du classement Deezer)
-  </p>
+      <p class="bm-lead bm-center" style="font-size:.95rem">
+        Pas de compte {services_label(@spotify?, @deezer?)} ?
+        <a href={~p"/auth/demo"} class="bm-link" id="home-demo">Essayer le mode démo</a>
+        (titres du classement Deezer)
+      </p>
+    <% true -> %>
+      <div class="bm-row" id="home-providers">
+        <a href={~p"/auth/demo"} class="bm-btn" id="home-demo">▶ Jouer</a>
+      </div>
+      <p class="bm-muted bm-center">Les titres viennent du classement Deezer du moment.</p>
+  <% end %>
 </Layouts.app>

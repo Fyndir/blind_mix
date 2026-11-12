@@ -15,6 +15,8 @@ defmodule BlindMix.Provider do
           optional(:isrc) => String.t() | nil
         }
 
+  @doc "Vrai si les clés OAuth du service sont renseignées (sinon il est masqué)."
+  @callback configured?() :: boolean()
   @callback authorize_url(state :: String.t()) :: String.t()
   @callback fetch_token(code :: String.t()) :: {:ok, String.t()} | {:error, term()}
   @callback liked_tracks(token :: String.t()) :: {:ok, [track()]} | {:error, term()}

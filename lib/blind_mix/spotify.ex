@@ -16,7 +16,10 @@ defmodule BlindMix.Spotify do
   @page_size 50
   @max_pages 40
 
-  defp conf, do: Application.fetch_env!(:blind_mix, :spotify)
+  defp conf, do: Application.get_env(:blind_mix, :spotify, [])
+
+  @impl true
+  def configured?, do: BlindMix.Providers.present?(conf(), [:client_id, :client_secret])
 
   @impl true
   def authorize_url(state) do

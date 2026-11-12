@@ -5,7 +5,7 @@ defmodule BlindMixWeb.AuthController do
 
   # GET /auth/:provider  ("deezer" ou "spotify") : redirige vers la page d'autorisation OAuth 2.
   def login(conn, %{"provider" => name}) do
-    case Providers.fetch(name) do
+    case Providers.fetch_available(name) do
       {:ok, provider} ->
         state = 16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
 
@@ -14,9 +14,10 @@ defmodule BlindMixWeb.AuthController do
         |> redirect(external: provider.authorize_url(state))
 
       :error ->
+        # Service inconnu ou sans clés OAuth : on ne le propose pas.
         conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(404, "Fournisseur inconnu")
+        |> put_flash(:error, "Ce service musical n'est pas disponible.")
+        |> redirect(to: ~p"/")
     end
   end
 

@@ -11,6 +11,10 @@ defmodule BlindMix.Demo do
 
   alias BlindMix.Deezer
 
+  # Aucun compte nécessaire : toujours disponible.
+  @impl true
+  def configured?, do: true
+
   @impl true
   def authorize_url(state) do
     "/auth/demo/callback?" <> URI.encode_query(%{code: "demo", state: state})

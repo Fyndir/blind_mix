@@ -16,7 +16,10 @@ defmodule BlindMix.Deezer do
   @page_size 100
   @max_pages 20
 
-  defp conf, do: Application.fetch_env!(:blind_mix, :deezer)
+  defp conf, do: Application.get_env(:blind_mix, :deezer, [])
+
+  @impl true
+  def configured?, do: BlindMix.Providers.present?(conf(), [:app_id, :secret])
 
   @impl true
   def authorize_url(state) do

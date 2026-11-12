@@ -14,6 +14,9 @@ defmodule BlindMix.FakeProvider do
     do: Enum.map(@tracks, &Map.put(&1, :preview_url, "https://example.test/#{&1.id}.mp3"))
 
   @impl true
+  def configured?, do: true
+
+  @impl true
   def authorize_url(state), do: "/auth/fake/callback?state=#{state}&code=fake"
 
   @impl true
