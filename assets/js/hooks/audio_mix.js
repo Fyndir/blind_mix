@@ -1,20 +1,26 @@
-// Hook LiveView : joue plusieurs extraits en même temps et retire les pistes trouvées.
+// Hook LiveView : joue plusieurs extraits en même temps, retire les pistes trouvées,
+// et gère les effets (sons synthétisés + confettis).
 //
-// Événements serveur : "mix:start" {tracks: [{id, url}]}, "mix:stop" {id}, "mix:stop_all"
+// Événements serveur :
+//   "mix:start" {tracks: [{id, url}]}, "mix:stop" {id}, "mix:stop_all"
+//   "fx:found" {id, kind: "title" | "artist"}, "fx:miss", "fx:end"
 //
-// Les navigateurs (Safari surtout) n'autorisent la lecture audio qu'après un geste
-// utilisateur. Au clic sur un bouton [data-unlock], on "réveille" 5 éléments <audio>
-// avec un silence ; on les réutilise ensuite pour les vraies pistes.
+// Les navigateurs (Safari surtout) n'autorisent le son qu'après un geste utilisateur.
+// Au clic sur un bouton [data-unlock], on "réveille" 5 éléments <audio> avec un silence
+// et on crée le contexte Web Audio utilisé pour les effets sonores.
 
 const SILENCE =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 const POOL_SIZE = 5;
 const MAX_START_OFFSET = 8; // secondes : décalage aléatoire dans l'extrait de 30 s
+const CONFETTI_COLORS = ["#ff4d8d", "#ffd23f", "#2de2e6", "#5cff9d", "#a66cff", "#ff8a3d"];
 
 export const AudioMix = {
   mounted() {
     this.pool = [];
     this.active = new Map();
+    this.ctx = null;
+    this.lastFx = 0;
 
     this.el.addEventListener("click", (e) => {
       if (e.target.closest("[data-unlock]")) this.unlock();
@@ -31,6 +37,10 @@ export const AudioMix = {
     this.handleEvent("mix:start", ({ tracks }) => this.start(tracks));
     this.handleEvent("mix:stop", ({ id }) => this.fadeOut(id));
     this.handleEvent("mix:stop_all", () => this.stopAll());
+
+    this.handleEvent("fx:found", ({ id, kind }) => this.found(id, kind));
+    this.handleEvent("fx:miss", () => this.miss());
+    this.handleEvent("fx:end", () => setTimeout(() => this.sfx("end"), 450));
   },
 
   destroyed() {
@@ -43,7 +53,10 @@ export const AudioMix = {
       audio.src = SILENCE;
       audio.play().catch(() => {});
     });
+    this.audioCtx();
   },
+
+  // --- Mix des extraits -----------------------------------------------------
 
   start(tracks) {
     this.stopAll();
@@ -89,5 +102,125 @@ export const AudioMix = {
   stopAll() {
     this.active.forEach((audio) => audio.pause());
     this.active.clear();
+  },
+
+  // --- Effets sonores (synthétisés, aucun fichier à charger) ----------------
+
+  audioCtx() {
+    try {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+    } catch (_) {
+      this.ctx = null;
+    }
+    return this.ctx;
+  },
+
+  tone(freq, at, dur, { type = "sine", gain = 0.2, slideTo = null } = {}) {
+    const ctx = this.audioCtx();
+    if (!ctx) return;
+
+    const t0 = ctx.currentTime + at;
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+
+    amp.gain.setValueAtTime(0.0001, t0);
+    amp.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    osc.connect(amp).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  },
+
+  sfx(name) {
+    switch (name) {
+      case "title": // arpège montant, victoire complète
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
+          this.tone(f, i * 0.07, 0.24, { type: "triangle", gain: 0.22 })
+        );
+        break;
+      case "artist": // deux notes, bonne réponse partielle
+        this.tone(659.25, 0, 0.14, { type: "triangle", gain: 0.2 });
+        this.tone(987.77, 0.09, 0.26, { type: "triangle", gain: 0.2 });
+        break;
+      case "miss": // petit "bzzt" grave
+        this.tone(220, 0, 0.22, { type: "sawtooth", gain: 0.07, slideTo: 110 });
+        break;
+      case "end": // fanfare de fin de manche
+        [392, 523.25, 659.25, 783.99].forEach((f, i) =>
+          this.tone(f, i * 0.12, 0.35, { type: "square", gain: 0.07 })
+        );
+        this.tone(1046.5, 0.5, 0.6, { type: "triangle", gain: 0.2 });
+        break;
+    }
+  },
+
+  found(id, kind) {
+    // Plusieurs pistes trouvées d'un coup : un seul son, mais des confettis pour chacune.
+    const now = performance.now();
+    if (now - this.lastFx > 120) this.sfx(kind);
+    this.lastFx = now;
+    this.confetti(id, kind);
+  },
+
+  miss() {
+    this.sfx("miss");
+    const form = document.getElementById("guess-form");
+    if (!form) return;
+    form.classList.remove("bm-shake");
+    void form.offsetWidth; // relance l'animation
+    form.classList.add("bm-shake");
+  },
+
+  // --- Confettis ------------------------------------------------------------
+
+  confetti(id, kind) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const el = document.getElementById(`slot-${id}`);
+    if (!el) return;
+
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const count = kind === "title" ? 40 : 24;
+
+    for (let i = 0; i < count; i++) {
+      const size = 6 + Math.random() * 7;
+      const p = document.createElement("div");
+      Object.assign(p.style, {
+        position: "fixed",
+        left: `${cx}px`,
+        top: `${cy}px`,
+        width: `${size}px`,
+        height: `${size * 0.6}px`,
+        background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        borderRadius: "2px",
+        pointerEvents: "none",
+        zIndex: 9999,
+      });
+      document.body.appendChild(p);
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * (r.width / 2.4);
+      const dx = Math.cos(angle) * dist * 1.3;
+      const dy = Math.sin(angle) * dist - 50;
+      const spin = Math.random() * 720 - 360;
+
+      p.animate(
+        [
+          { transform: "translate(0, 0) rotate(0deg)", opacity: 1 },
+          { transform: `translate(${dx}px, ${dy + 130}px) rotate(${spin}deg)`, opacity: 0 },
+        ],
+        { duration: 700 + Math.random() * 600, easing: "cubic-bezier(.2,.8,.4,1)" }
+      ).onfinish = () => p.remove();
+    }
   },
 };

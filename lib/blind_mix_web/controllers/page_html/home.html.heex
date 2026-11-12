@@ -1,26 +1,25 @@
-<div class="mx-auto max-w-xl space-y-6 p-8 text-center">
-  <h1 class="text-4xl font-bold">Blind test multi-pistes</h1>
-  <p class="text-lg">
+<BlindMixWeb.Pop.styles />
+
+<div class="bm-wrap">
+  <h1 class="bm-title bm-title--xl">Blind test multi-pistes</h1>
+
+  <p class="bm-lead bm-center">
     5 de tes titres likés jouent en même temps. Reconnais-les, tape l'artiste ou le titre,
-    et fais disparaître les pistes une à une.
+    et fais disparaître les pistes une à une !
   </p>
 
-  <p :if={Phoenix.Flash.get(@flash, :error)} class="rounded-lg border border-red-400 bg-red-50 p-3 text-red-800">
+  <p :if={Phoenix.Flash.get(@flash, :error)} class="bm-error">
     <%= Phoenix.Flash.get(@flash, :error) %>
   </p>
 
-  <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
-    <a href="/auth/spotify" class="inline-block rounded-lg bg-[#1db954] px-6 py-3 font-semibold text-black">
-      Se connecter avec Spotify
-    </a>
-    <a href="/auth/deezer" class="inline-block rounded-lg bg-black px-6 py-3 font-semibold text-white">
-      Se connecter avec Deezer
-    </a>
+  <div class="bm-row">
+    <a href="/auth/spotify" class="bm-btn bm-btn--spotify">Se connecter avec Spotify</a>
+    <a href="/auth/deezer" class="bm-btn bm-btn--deezer">Se connecter avec Deezer</a>
   </div>
 
-  <p class="text-sm opacity-70">
+  <p class="bm-lead bm-center" style="font-size:.95rem">
     Pas de compte sous la main ?
-    <a href="/auth/demo" class="underline">Essayer le mode démo</a>
-    (titres du classement Deezer).
+    <a href="/auth/demo" class="bm-link">Essayer le mode démo</a>
+    (titres du classement Deezer)
   </p>
 </div>

@@ -47,6 +47,43 @@ defmodule BlindMix.GameTest do
     assert Game.tick(game).status == :finished
   end
 
+  test "simulate trouve une piste précise sans saisie" do
+    {game, hits} = @tracks |> Game.new() |> Game.simulate("2", :title)
+    assert [{:title, %{id: "2"}, 5}] = hits
+    assert game.score == 5
+
+    {game, hits} = Game.simulate(game, "1", :artist)
+    assert [{:artist, %{id: "1"}, 2}] = hits
+    assert game.score == 7
+    assert game.status == :finished
+  end
+
+  test "simulate ignore une piste inconnue ou déjà trouvée" do
+    game = Game.new(@tracks)
+    assert {^game, []} = Game.simulate(game, "999", :title)
+
+    {game, _} = Game.simulate(game, "1", :title)
+    assert {^game, []} = Game.simulate(game, "1", :artist)
+  end
+
+  test "force simule un artiste ou un titre trouvé" do
+    {game, hits} = @tracks |> Game.new() |> Game.force("1", :artist)
+    assert [{:artist, %{id: "1"}, 2}] = hits
+    assert game.score == 2 and game.found == %{"1" => :artist}
+
+    {game, hits} = Game.force(game, "2", :title)
+    assert [{:title, %{id: "2"}, 5}] = hits
+    assert game.score == 7 and game.status == :finished
+
+    # piste déjà trouvée ou inconnue, manche finie : rien ne change
+    assert {^game, []} = Game.force(game, "1", :title)
+  end
+
+  test "force ignore une piste inconnue" do
+    game = Game.new(@tracks)
+    assert {^game, []} = Game.force(game, "999", :title)
+  end
+
   test "finish termine la manche sans changer le score" do
     {game, _} = @tracks |> Game.new() |> Game.guess("queen")
     finished = Game.finish(game)

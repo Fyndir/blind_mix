@@ -19,6 +19,8 @@ defmodule BlindMix.Game do
   defstruct tracks: [], found: %{}, score: 0, status: :playing, time_left: @round_seconds
 
   def round_size, do: @round_size
+  def round_seconds, do: @round_seconds
+  def round_seconds, do: @round_seconds
   def title_points, do: @title_points
   def artist_points, do: @artist_points
 
@@ -51,6 +53,37 @@ defmodule BlindMix.Game do
 
   def tick(%__MODULE__{status: :playing} = game), do: %{game | time_left: game.time_left - 1}
   def tick(game), do: game
+
+  @doc """
+  Simule la découverte (`:title` ou `:artist`) d'une piste précise, sans saisie
+  (outil de développement). Même retour que `guess/2`.
+  """
+  def simulate(%__MODULE__{status: :playing} = game, id, kind) when kind in [:title, :artist] do
+    points = if kind == :title, do: @title_points, else: @artist_points
+
+    case Enum.find(remaining(game), &(&1.id == id)) do
+      nil -> {game, []}
+      track -> apply_hits(game, [track], kind, points)
+    end
+  end
+
+  def simulate(game, _id, _kind), do: {game, []}
+
+  @doc """
+  Marque une piste comme trouvée sans saisie (outil de développement).
+  Retourne `{game, hits}` comme `guess/2`.
+  """
+  def force(%__MODULE__{status: :playing} = game, track_id, kind) when kind in [:title, :artist] do
+    case Enum.find(remaining(game), &(&1.id == track_id)) do
+      nil -> {game, []}
+      track -> apply_hits(game, [track], kind, points_for(kind))
+    end
+  end
+
+  def force(game, _track_id, _kind), do: {game, []}
+
+  defp points_for(:title), do: @title_points
+  defp points_for(:artist), do: @artist_points
 
   @doc "Termine la manche immédiatement (outil de développement)."
   def finish(%__MODULE__{} = game), do: %{game | status: :finished}
