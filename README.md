@@ -149,6 +149,26 @@ Ce qui n'est pas fourni par l'environnement est pris en charge par le conteneur 
 
 Les migrations sont appliquées à chaque démarrage, et PostgreSQL est arrêté proprement avec le conteneur.
 
+### Render (offre gratuite)
+
+Le dépôt contient un blueprint [`render.yaml`](render.yaml) :
+
+1. Crée une base gratuite sur [Neon](https://neon.tech) (région Francfort) et copie son URL de connexion (`postgresql://…?sslmode=require`).
+2. Sur [Render](https://render.com) : **New → Blueprint**, choisis ce dépôt GitHub, puis colle l'URL Neon dans `DATABASE_URL`.
+3. Le site est en ligne sur `https://blind-mix.onrender.com` (ou le nom attribué par Render). Chaque push sur `master` le redéploie, une fois le CI passé.
+
+Ce qui est géré automatiquement :
+
+- **Domaine :** il est lu dans `RENDER_EXTERNAL_HOSTNAME`, donc `PHX_HOST` est inutile.
+- **Clé de session :** `SECRET_KEY_BASE` est générée par Render.
+- **Connexion à Neon :** TLS est activé d'après le `sslmode` de l'URL.
+- **Retours OAuth :** les URL de retour Deezer et Spotify valent `https://<domaine>/auth/<service>/callback`. Déclare-les dans leurs applications.
+
+Limites de l'offre gratuite :
+
+- Le service s'endort après 15 minutes sans visite. Le réveil prend environ 30 secondes, et les rooms en cours sont perdues.
+- Le disque est effacé à chaque redémarrage, d'où la base externe : sans `DATABASE_URL`, la base embarquée repartirait de zéro.
+
 ### Variables d'environnement
 
 Toutes sont optionnelles (voir [`.env.example`](.env.example)) :
@@ -156,7 +176,7 @@ Toutes sont optionnelles (voir [`.env.example`](.env.example)) :
 | Variable | Rôle |
 | --- | --- |
 | `PHX_HOST` | Nom de domaine public (indispensable pour un accès autre que `localhost`) |
-| `DATABASE_URL` | Base PostgreSQL externe, à la place de la base embarquée |
+| `DATABASE_URL` | Base PostgreSQL externe, à la place de la base embarquée. TLS est activé si l'URL contient `sslmode=require` (Neon, Supabase), ou avec `DATABASE_SSL=true` |
 | `SECRET_KEY_BASE` | Clé de signature des sessions (`mix phx.gen.secret`) |
 | `MAIL_PROVIDER` | `resend`, `brevo`, `postmark` (avec `MAIL_API_KEY`) ou `smtp` (avec `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`). Active la connexion par lien magique. |
 | `MAIL_FROM` | Adresse d'expédition des e-mails |

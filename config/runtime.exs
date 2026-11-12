@@ -69,9 +69,34 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
+  # Base hébergée (Neon, Supabase...) : leurs URL finissent par `?sslmode=require`.
+  # On retire ces paramètres (inconnus d'Ecto) et on active TLS avec vérification du
+  # certificat. DATABASE_SSL=true force TLS pour une URL sans paramètre.
+  db_uri = URI.parse(database_url)
+  db_query = URI.decode_query(db_uri.query || "")
+
+  db_ssl? =
+    System.get_env("DATABASE_SSL") in ~w(true 1) or
+      db_query["sslmode"] in ~w(require verify-ca verify-full)
+
+  db_ssl =
+    if db_ssl? do
+      [
+        verify: :verify_peer,
+        cacerts: :public_key.cacerts_get(),
+        # Indispensable chez Neon, qui aiguille les connexions selon le nom d'hôte.
+        server_name_indication: String.to_charlist(db_uri.host),
+        customize_hostname_check: [
+          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+        ]
+      ]
+    else
+      false
+    end
+
   config :blind_mix, BlindMix.Repo,
-    # ssl: true,
-    url: database_url,
+    url: URI.to_string(%{db_uri | query: nil}),
+    ssl: db_ssl,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
@@ -130,12 +155,30 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  # Sans PHX_HOST, le site répond sur localhost (conteneur autonome lancé en local).
+  # Phoenix exige au moins 64 octets. Une clé plus courte mais aléatoire (celle que
+  # génère Render, par exemple) est étendue de façon déterministe par SHA-512.
+  secret_key_base =
+    if byte_size(secret_key_base) < 64,
+      do: :crypto.hash(:sha512, secret_key_base) |> Base.encode64(),
+      else: secret_key_base
+
+  # Nom de domaine public : PHX_HOST, sinon celui que fournit Render
+  # (RENDER_EXTERNAL_HOSTNAME), sinon localhost (conteneur autonome lancé en local).
   host =
-    case System.get_env("PHX_HOST", "") |> String.trim() do
-      "" -> "localhost"
-      value -> value
+    [System.get_env("PHX_HOST"), System.get_env("RENDER_EXTERNAL_HOSTNAME")]
+    |> Enum.map(&String.trim(&1 || ""))
+    |> Enum.find("localhost", &(&1 != ""))
+
+  # URL de retour OAuth par défaut sur le domaine public (à déclarer chez Deezer/Spotify).
+  if host != "localhost" do
+    if System.get_env("DEEZER_REDIRECT_URI") in [nil, ""] do
+      config :blind_mix, :deezer, redirect_uri: "https://#{host}/auth/deezer/callback"
     end
+
+    if System.get_env("SPOTIFY_REDIRECT_URI") in [nil, ""] do
+      config :blind_mix, :spotify, redirect_uri: "https://#{host}/auth/spotify/callback"
+    end
+  end
 
   config :blind_mix, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 

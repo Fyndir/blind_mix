@@ -1,0 +1,28 @@
+# Blueprint Render (https://render.com/docs/blueprint-spec).
+# Dashboard Render → New → Blueprint → choisir ce dépôt : le service est créé d'après ce fichier.
+#
+# Offre gratuite : le service s'endort après 15 min sans visite (réveil ≈ 30 s, les
+# rooms en cours sont perdues) et son disque est effacé à chaque redémarrage. La base
+# doit donc être externe : DATABASE_URL vers un Postgres gratuit comme Neon.
+services:
+  - type: web
+    name: blind-mix
+    runtime: docker
+    plan: free
+    region: frankfurt
+    # Déploie après chaque push sur master, une fois le CI (tests) passé.
+    branch: master
+    autoDeployTrigger: checksPass
+    envVars:
+      # Générée par Render, étendue à 64 octets au démarrage (config/runtime.exs).
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      # À saisir à la création : URL Neon (postgresql://…?sslmode=require).
+      - key: DATABASE_URL
+        sync: false
+      # Peu de connexions sur l'offre gratuite de Neon et 512 Mo de mémoire ici.
+      - key: POOL_SIZE
+        value: "5"
+      # PHX_HOST est inutile : le domaine onrender.com est lu dans RENDER_EXTERNAL_HOSTNAME.
+      # Optionnels, à ajouter dans le dashboard : MAIL_PROVIDER, MAIL_API_KEY, MAIL_FROM,
+      # DEEZER_APP_ID, DEEZER_SECRET, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET.
