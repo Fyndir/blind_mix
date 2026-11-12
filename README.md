@@ -4,6 +4,8 @@ Un blind test où **5 de tes titres likés jouent en même temps**. Reconnais-le
 
 Connecte ton compte **Deezer** ou **Spotify**, ou essaie le **mode démo** (classement Deezer, sans compte). Avec un profil Blind Mix, tes manches sont enregistrées et les titres tirés s'adaptent peu à peu à tes goûts. Et à plusieurs, crée une **room** : vos morceaux en commun passent en priorité, et le premier qui trouve marque.
 
+**▶ Jouer en ligne : [blind-mix.onrender.com](https://blind-mix.onrender.com)** (hébergement gratuit : après une période sans visite, le premier chargement prend environ 30 s).
+
 ![Accueil](docs/screenshots/accueil.webp)
 
 ## Le jeu
@@ -153,9 +155,14 @@ Les migrations sont appliquées à chaque démarrage, et PostgreSQL est arrêté
 
 Le dépôt contient un blueprint [`render.yaml`](render.yaml) :
 
-1. Crée une base gratuite sur [Neon](https://neon.tech) (région Francfort) et copie son URL de connexion (`postgresql://…?sslmode=require`).
-2. Sur [Render](https://render.com) : **New → Blueprint**, choisis ce dépôt GitHub, puis colle l'URL Neon dans `DATABASE_URL`.
-3. Le site est en ligne sur `https://blind-mix.onrender.com` (ou le nom attribué par Render). Chaque push sur `master` le redéploie, une fois le CI passé.
+1. Crée une base gratuite sur [Neon](https://neon.tech), en région Francfort. Dans **Connect**, désactive **Connection pooling** : l'accès direct évite les soucis de migration avec PgBouncer. Affiche ensuite le mot de passe et copie l'URL (`postgresql://…?sslmode=require`).
+2. Sur [Render](https://render.com) : **New → Blueprint**, choisis ce dépôt GitHub, puis colle l'URL Neon dans `DATABASE_URL`. Sans Blueprint, **New → Web Service** marche aussi : langage Docker, région Frankfurt, instance Free, avec les variables de [`render.yaml`](render.yaml).
+3. Le premier build prend 5 à 10 minutes. Les logs doivent ensuite afficher `migrations`, `Migrated …` puis `Running BlindMixWeb.Endpoint`. Le site est alors en ligne : [blind-mix.onrender.com](https://blind-mix.onrender.com) pour ce dépôt. Chaque push sur `master` le redéploie, une fois le CI passé.
+
+En cas de problème au démarrage, deux messages sont fréquents :
+
+- **`password authentication failed`** : l'URL de `DATABASE_URL` ne contient pas le bon mot de passe. Recopie-la depuis Neon, sans espace ni guillemet.
+- **`PostgreSQL embarqué`** : `DATABASE_URL` est vide.
 
 Ce qui est géré automatiquement :
 
