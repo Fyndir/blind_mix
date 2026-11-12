@@ -10,9 +10,8 @@ defmodule BlindMix.Application do
     children = [
       BlindMixWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:blind_mix, :dns_cluster_query) || :ignore},
+      BlindMix.Repo,
       {Phoenix.PubSub, name: BlindMix.PubSub},
-      # Start a worker by calling: BlindMix.Worker.start_link(arg)
-      # {BlindMix.Worker, arg},
       # Start to serve requests, typically the last entry
       BlindMixWeb.Endpoint
     ]

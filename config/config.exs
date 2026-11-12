@@ -5,17 +5,31 @@
 # is restricted to this project.
 
 # General application configuration
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Config module.
-#
-# This configuration file is loaded before any dependency and
-# is restricted to this project.
-
-# General application configuration
 import Config
 
+config :blind_mix, :scopes,
+  user: [
+    default: true,
+    module: BlindMix.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: BlindMix.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :blind_mix,
+  ecto_repos: [BlindMix.Repo],
   generators: [timestamp_type: :utc_datetime]
+
+# Envoi des e-mails (liens de connexion). En dev, ils sont visibles sur /dev/mailbox ;
+# en prod, l'adaptateur est configuré dans runtime.exs.
+config :blind_mix, BlindMix.Mailer, adapter: Swoosh.Adapters.Local
+
+# Interface et messages de validation en français.
+config :blind_mix, BlindMixWeb.Gettext, default_locale: "fr"
 
 # Configure the endpoint
 config :blind_mix, BlindMixWeb.Endpoint,

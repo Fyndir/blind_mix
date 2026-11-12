@@ -25,7 +25,9 @@ defmodule BlindMixWeb.AuthController do
     expected = get_session(conn, :oauth_state)
 
     with {:ok, provider} <- Providers.fetch(name),
-         true <- is_binary(expected) and is_binary(state) and Plug.Crypto.secure_compare(state, expected),
+         true <-
+           is_binary(expected) and is_binary(state) and
+             Plug.Crypto.secure_compare(state, expected),
          {:ok, token} <- provider.fetch_token(code) do
       conn
       |> delete_session(:oauth_state)
@@ -40,9 +42,11 @@ defmodule BlindMixWeb.AuthController do
 
   def callback(conn, _params), do: failure(conn)
 
+  # Quitte seulement le service musical : le compte Blind Mix reste connecté.
   def logout(conn, _params) do
     conn
-    |> configure_session(drop: true)
+    |> delete_session(:provider)
+    |> delete_session(:access_token)
     |> redirect(to: ~p"/")
   end
 

@@ -1,0 +1,20 @@
+## Traductions françaises des textes de l'interface Phoenix (core_components, layouts).
+msgid ""
+msgstr ""
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "close"
+msgstr "fermer"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "We can't find the internet"
+msgstr "Connexion internet perdue"
+
+msgid "Something went wrong!"
+msgstr "Un problème est survenu !"
+
+msgid "Attempting to reconnect"
+msgstr "Reconnexion en cours"

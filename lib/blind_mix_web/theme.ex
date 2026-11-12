@@ -11,7 +11,7 @@ defmodule BlindMixWeb.Theme do
     assigns = assign(assigns, :css, css())
 
     ~H"""
-    <%= Phoenix.HTML.raw("<style>" <> @css <> "</style>") %>
+    {Phoenix.HTML.raw("<style>" <> @css <> "</style>")}
     """
   end
 

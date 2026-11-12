@@ -1,8 +1,9 @@
 defmodule BlindMixWeb.GameLive do
   use BlindMixWeb, :live_view
 
-  alias BlindMix.{Game, Providers}
-  alias BlindMixWeb.Pop
+  require Logger
+
+  alias BlindMix.{Game, History, Providers, Taste}
 
   # On tire plus de candidats que nécessaire : certains n'ont pas d'extrait disponible.
   @candidates 12
@@ -11,17 +12,20 @@ defmodule BlindMixWeb.GameLive do
   @impl true
   def mount(_params, %{"access_token" => token, "provider" => name}, socket) do
     case Providers.fetch(name) do
-      {:ok, provider} -> {:ok, setup(socket, provider, token)}
+      {:ok, provider} -> {:ok, setup(socket, provider, name, token)}
       :error -> {:ok, redirect(socket, to: ~p"/")}
     end
   end
 
   def mount(_params, _session, socket), do: {:ok, redirect(socket, to: ~p"/")}
 
-  defp setup(socket, provider, token) do
+  defp setup(socket, provider, name, token) do
     socket =
       assign(socket,
         provider: provider,
+        provider_name: name,
+        taste: Taste.empty(),
+        recorded_round: nil,
         token: token,
         dev_tools: dev_tools?(),
         likes: nil,
@@ -36,7 +40,9 @@ defmodule BlindMixWeb.GameLive do
       )
 
     if connected?(socket) do
-      start_async(socket, :likes, fn -> provider.liked_tracks(token) end)
+      socket
+      |> load_taste()
+      |> start_async(:likes, fn -> provider.liked_tracks(token) end)
     else
       socket
     end
@@ -54,7 +60,6 @@ defmodule BlindMixWeb.GameLive do
   end
 
   def handle_async(:likes, failure, socket) do
-    require Logger
     Logger.error("Chargement des titres impossible : #{inspect(failure, limit: 20)}")
     {:noreply, assign(socket, error: "Impossible de lire tes titres likés. Reconnecte-toi.")}
   end
@@ -93,12 +98,12 @@ defmodule BlindMixWeb.GameLive do
   @impl true
   def handle_event("start", _params, %{assigns: %{likes: likes, preparing: false}} = socket)
       when is_list(likes) do
-    %{provider: provider, token: token, played: played} = socket.assigns
+    %{provider: provider, token: token, played: played, taste: taste} = socket.assigns
 
     {:noreply,
      socket
      |> assign(preparing: true, feedback: nil, error: nil)
-     |> start_async(:round, fn -> build_round(provider, token, likes, played) end)}
+     |> start_async(:round, fn -> build_round(provider, token, likes, played, taste) end)}
   end
 
   def handle_event("start", _params, socket), do: {:noreply, socket}
@@ -128,7 +133,8 @@ defmodule BlindMixWeb.GameLive do
      socket
      |> assign(game: Game.finish(game), feedback: nil)
      |> push_event("mix:stop_all", %{})
-     |> push_event("fx:end", %{})}
+     |> push_event("fx:end", %{})
+     |> record_round()}
   end
 
   def handle_event(
@@ -161,7 +167,8 @@ defmodule BlindMixWeb.GameLive do
        socket
        |> assign(game: game)
        |> push_event("mix:stop_all", %{})
-       |> push_event("fx:end", %{})}
+       |> push_event("fx:end", %{})
+       |> record_round()}
     end
   end
 
@@ -188,13 +195,52 @@ defmodule BlindMixWeb.GameLive do
         socket
       end
 
-    assign(socket,
+    socket
+    |> assign(
       game: game,
       feedback: feedback,
       fb_seq: socket.assigns.fb_seq + 1,
       form: to_form(%{"guess" => ""})
     )
+    |> record_round()
   end
+
+  # --- Profil ---------------------------------------------------------------
+
+  defp user_scope(%{assigns: %{current_scope: %{user: %{}} = scope}}), do: scope
+  defp user_scope(_socket), do: nil
+
+  defp logged_in?(%{user: %{}}), do: true
+  defp logged_in?(_scope), do: false
+
+  defp load_taste(socket) do
+    case user_scope(socket) do
+      nil -> socket
+      scope -> assign(socket, taste: History.taste(scope, socket.assigns.provider_name))
+    end
+  end
+
+  # Enregistre une seule fois chaque manche terminée (joueurs connectés seulement),
+  # puis recharge le profil pour que la manche suivante en tienne compte.
+  defp record_round(%{assigns: %{game: %Game{status: :finished}, round_id: id}} = socket)
+       when socket.assigns.recorded_round != id do
+    socket = assign(socket, recorded_round: id)
+
+    with %{} = scope <- user_scope(socket),
+         {:ok, _round} <-
+           History.record_round(scope, socket.assigns.provider_name, socket.assigns.game) do
+      load_taste(socket)
+    else
+      nil ->
+        socket
+
+      {:error, reason} ->
+        Logger.error("Enregistrement de la manche impossible : #{inspect(reason)}")
+        socket
+    end
+  end
+
+  defp record_round(socket), do: socket
 
   # Actif en développement (`dev_routes` de dev.exs) ou avec DEV_TOOLS=true (ex. Docker en local).
   defp dev_tools? do
@@ -202,13 +248,15 @@ defmodule BlindMixWeb.GameLive do
       System.get_env("DEV_TOOLS") == "true"
   end
 
-  defp build_round(provider, token, likes, played) do
+  # Les titres sont tirés selon le profil de goûts (voir `BlindMix.Taste`), du plus
+  # prioritaire au moins prioritaire : ceux sans extrait sont remplacés par les suivants.
+  defp build_round(provider, token, likes, played, taste) do
     fresh = Enum.reject(likes, &MapSet.member?(played, &1.id))
     pool = if length(fresh) >= @candidates, do: fresh, else: likes
 
     tracks =
       pool
-      |> Enum.take_random(@candidates)
+      |> Taste.pick(@candidates, taste)
       |> Task.async_stream(&provider.refresh_preview(token, &1),
         max_concurrency: 5,
         timeout: 10_000,
@@ -220,7 +268,9 @@ defmodule BlindMixWeb.GameLive do
       end)
       |> Enum.take(Game.round_size())
 
-    if length(tracks) == Game.round_size(), do: {:ok, tracks}, else: {:error, :not_enough_previews}
+    if length(tracks) == Game.round_size(),
+      do: {:ok, tracks},
+      else: {:error, :not_enough_previews}
   end
 
   defp feedback([], text) when text in [nil, ""], do: nil
@@ -263,122 +313,163 @@ defmodule BlindMixWeb.GameLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Pop.styles />
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <div id="mixer" phx-hook="AudioMix" class="bm-stack">
+        <header class="bm-head">
+          <h1 class="bm-title">Blind test multi-pistes</h1>
+          <.link href={~p"/auth/logout"} method="delete" class="bm-link" id="switch-provider">
+            Changer de service
+          </.link>
+        </header>
 
-    <div id="mixer" phx-hook="AudioMix" class="bm-wrap">
-      <header class="bm-head">
-        <h1 class="bm-title">Blind test multi-pistes</h1>
-        <.link href={~p"/auth/logout"} method="delete" class="bm-link">Déconnexion</.link>
-      </header>
+        <p :if={@error} class="bm-error">{@error}</p>
 
-      <p :if={@error} class="bm-error"><%= @error %></p>
+        <p :if={is_nil(@likes) and is_nil(@error)} class="bm-lead">Chargement de tes titres likés…</p>
 
-      <p :if={is_nil(@likes) and is_nil(@error)} class="bm-lead">Chargement de tes titres likés…</p>
-
-      <div :if={@likes && is_nil(@game)} class="bm-card">
-        <p class="bm-lead">
-          5 titres vont se jouer <strong>en même temps</strong>. Tape un artiste
-          (<%= Game.artist_points() %> pts) ou un titre (<%= Game.title_points() %> pts)
-          pour retirer une piste du mix. Tu as <%= Game.round_seconds() %> secondes !
-        </p>
-        <button phx-click="start" data-unlock disabled={@preparing} class="bm-btn">
-          <%= if @preparing, do: "Préparation…", else: "▶ Lancer la manche" %>
-        </button>
-      </div>
-
-      <div :if={@game} class="bm-wrap" style="padding:0;gap:1.1rem">
-        <div class="bm-hud">
-          <span class="bm-score">
-            Score <span id={"score-#{@game.score}"} class="bm-score-num"><%= @game.score %></span>
-          </span>
-          <span :if={@game.status == :playing} class={["bm-timer", @game.time_left <= 15 && "bm-timer--low"]}>
-            ⏱ <%= @game.time_left %> s
-          </span>
+        <div :if={@likes && is_nil(@game)} class="bm-card">
+          <p class="bm-lead">
+            5 titres vont se jouer <strong>en même temps</strong>. Tape un artiste
+            ({Game.artist_points()} pts) ou un titre ({Game.title_points()} pts)
+            pour retirer une piste du mix. Tu as {Game.round_seconds()} secondes !
+          </p>
+          <p :if={not logged_in?(@current_scope)} class="bm-muted" id="guest-hint">
+            Tu joues en invité.
+            <.link navigate={~p"/users/register"} class="bm-link">Crée ton profil</.link>
+            pour garder tes manches et des titres choisis selon tes goûts.
+          </p>
+          <button phx-click="start" data-unlock disabled={@preparing} class="bm-btn" id="start-round">
+            {if @preparing, do: "Préparation…", else: "▶ Lancer la manche"}
+          </button>
         </div>
 
-        <div :if={@game.status == :playing} class="bm-bar">
-          <div
-            class={["bm-bar-fill", @game.time_left <= 15 && "bm-bar-fill--low"]}
-            style={"width: #{time_pct(@game)}%"}
-          >
+        <div :if={@game} class="bm-stack" style="gap:1.1rem">
+          <div class="bm-hud">
+            <span class="bm-score">
+              Score <span id={"score-#{@game.score}"} class="bm-score-num">{@game.score}</span>
+            </span>
+            <span
+              :if={@game.status == :playing}
+              class={["bm-timer", @game.time_left <= 15 && "bm-timer--low"]}
+            >
+              ⏱ {@game.time_left} s
+            </span>
           </div>
-        </div>
 
-        <div :if={@game.status == :finished} class="bm-banner">
-          🏁 Manche terminée : <%= map_size(@game.found) %>/<%= length(@game.tracks) %> pistes trouvées
-        </div>
-
-        <div class="bm-slots">
-          <div
-            :for={s <- slots(@game)}
-            id={"slot-#{s.track.id}"}
-            class={["bm-slot", "bm-slot--#{s.state}"]}
-            style={"--c: #{color(s.i)}"}
-          >
-            <span class="bm-num"><%= s.i %></span>
-
-            <div class="bm-body">
-              <%= if s.state == :playing do %>
-                <div class="bm-mystery">Piste mystère</div>
-                <div class="bm-sub">Artiste ? Titre ?</div>
-              <% else %>
-                <div class="bm-name"><%= s.track.title %></div>
-                <div class="bm-sub"><%= s.track.artist %></div>
-              <% end %>
-            </div>
-
-            <div :if={s.state == :playing} class="bm-eq" aria-hidden="true">
-              <i></i><i></i><i></i><i></i><i></i>
-            </div>
-            <span :if={s.state in [:title, :artist]} class="bm-chip">
-              <%= slot_label(s.state) %> +<%= points(s.state) %>
-            </span>
-            <span :if={s.state in [:title, :artist]} class="bm-float" aria-hidden="true">
-              +<%= points(s.state) %>
-            </span>
-            <span :if={s.state == :missed} class="bm-chip bm-chip--miss">Raté</span>
-
-            <div :if={@dev_tools and s.state == :playing} class="bm-dev">
-              <button type="button" phx-click="dev_found" phx-value-id={s.track.id} phx-value-kind="artist">
-                🛠 Artiste trouvé
-              </button>
-              <button type="button" phx-click="dev_found" phx-value-id={s.track.id} phx-value-kind="title">
-                🛠 Titre trouvé
-              </button>
+          <div :if={@game.status == :playing} class="bm-bar">
+            <div
+              class={["bm-bar-fill", @game.time_left <= 15 && "bm-bar-fill--low"]}
+              style={"width: #{time_pct(@game)}%"}
+            >
             </div>
           </div>
+
+          <div :if={@game.status == :finished} class="bm-banner">
+            🏁 Manche terminée : {map_size(@game.found)}/{length(@game.tracks)} pistes trouvées
+          </div>
+
+          <p
+            :if={
+              @game.status == :finished and @recorded_round == @round_id and
+                logged_in?(@current_scope)
+            }
+            class="bm-note"
+            id="round-saved"
+          >
+            <.icon name="hero-check-circle-mini" class="size-5 shrink-0" />
+            <span>
+              Manche enregistrée : la prochaine tiendra compte de tes goûts.
+              <.link navigate={~p"/profile"} class="bm-link">Voir mon profil</.link>
+            </span>
+          </p>
+
+          <div class="bm-slots">
+            <div
+              :for={s <- slots(@game)}
+              id={"slot-#{s.track.id}"}
+              class={["bm-slot", "bm-slot--#{s.state}"]}
+              style={"--c: #{color(s.i)}"}
+            >
+              <span class="bm-num">{s.i}</span>
+
+              <div class="bm-body">
+                <%= if s.state == :playing do %>
+                  <div class="bm-mystery">Piste mystère</div>
+                  <div class="bm-sub">Artiste ? Titre ?</div>
+                <% else %>
+                  <div class="bm-name">{s.track.title}</div>
+                  <div class="bm-sub">{s.track.artist}</div>
+                <% end %>
+              </div>
+
+              <div :if={s.state == :playing} class="bm-eq" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <span :if={s.state in [:title, :artist]} class="bm-chip">
+                {slot_label(s.state)} +{points(s.state)}
+              </span>
+              <span :if={s.state in [:title, :artist]} class="bm-float" aria-hidden="true">
+                +{points(s.state)}
+              </span>
+              <span :if={s.state == :missed} class="bm-chip bm-chip--miss">Raté</span>
+
+              <div :if={@dev_tools and s.state == :playing} class="bm-dev">
+                <button
+                  type="button"
+                  phx-click="dev_found"
+                  phx-value-id={s.track.id}
+                  phx-value-kind="artist"
+                >
+                  🛠 Artiste trouvé
+                </button>
+                <button
+                  type="button"
+                  phx-click="dev_found"
+                  phx-value-id={s.track.id}
+                  phx-value-kind="title"
+                >
+                  🛠 Titre trouvé
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <.form
+            :if={@game.status == :playing}
+            for={@form}
+            id="guess-form"
+            phx-submit="guess"
+            class="bm-form"
+          >
+            <input
+              type="text"
+              name="guess"
+              value={@form[:guess].value}
+              autocomplete="off"
+              autofocus
+              placeholder="Artiste ou titre…"
+              class="bm-input"
+            />
+            <button class="bm-btn">OK</button>
+          </.form>
+
+          <p :if={@feedback} id={"fb-#{@fb_seq}"} class="bm-feedback">{@feedback}</p>
+
+          <div :if={@dev_tools and @game.status == :playing}>
+            <button type="button" phx-click="finish" class="bm-devbtn">🛠 Terminer la manche (dev)</button>
+          </div>
+
+          <button
+            :if={@game.status == :finished}
+            phx-click="start"
+            data-unlock
+            disabled={@preparing}
+            class="bm-btn"
+          >
+            {if @preparing, do: "Préparation…", else: "▶ Manche suivante"}
+          </button>
         </div>
-
-        <.form :if={@game.status == :playing} for={@form} id="guess-form" phx-submit="guess" class="bm-form">
-          <input
-            type="text"
-            name="guess"
-            value={@form[:guess].value}
-            autocomplete="off"
-            autofocus
-            placeholder="Artiste ou titre…"
-            class="bm-input"
-          />
-          <button class="bm-btn">OK</button>
-        </.form>
-
-        <p :if={@feedback} id={"fb-#{@fb_seq}"} class="bm-feedback"><%= @feedback %></p>
-
-        <div :if={@dev_tools and @game.status == :playing}>
-          <button type="button" phx-click="finish" class="bm-devbtn">🛠 Terminer la manche (dev)</button>
-        </div>
-
-        <button
-          :if={@game.status == :finished}
-          phx-click="start"
-          data-unlock
-          disabled={@preparing}
-          class="bm-btn"
-        >
-          <%= if @preparing, do: "Préparation…", else: "▶ Manche suivante" %>
-        </button>
       </div>
-    </div>
+    </Layouts.app>
     """
   end
 end

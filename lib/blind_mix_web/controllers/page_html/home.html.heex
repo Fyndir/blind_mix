@@ -1,6 +1,4 @@
-<BlindMixWeb.Pop.styles />
-
-<div class="bm-wrap">
+<Layouts.app flash={@flash} current_scope={@current_scope}>
   <h1 class="bm-title bm-title--xl">Blind test multi-pistes</h1>
 
   <p class="bm-lead bm-center">
@@ -8,18 +6,42 @@
     et fais disparaître les pistes une à une !
   </p>
 
-  <p :if={Phoenix.Flash.get(@flash, :error)} class="bm-error">
-    <%= Phoenix.Flash.get(@flash, :error) %>
-  </p>
+  <%= if @current_scope && @current_scope.user do %>
+    <p class="bm-note" id="home-profile-note">
+      <.icon name="hero-sparkles-mini" class="size-5 shrink-0" />
+      <span>
+        Tes manches sont enregistrées : plus tu joues, plus elles ciblent tes goûts.
+        <.link navigate={~p"/profile"} class="bm-link">Voir mon profil</.link>
+      </span>
+    </p>
+  <% else %>
+    <p class="bm-note" id="home-guest-note">
+      <.icon name="hero-user-plus-mini" class="size-5 shrink-0" />
+      <span>
+        <.link navigate={~p"/users/register"} class="bm-link">Crée ton profil</.link>
+        pour garder ton historique : les manches s'adapteront à tes goûts.
+      </span>
+    </p>
+  <% end %>
 
-  <div class="bm-row">
-    <a href="/auth/spotify" class="bm-btn bm-btn--spotify">Se connecter avec Spotify</a>
-    <a href="/auth/deezer" class="bm-btn bm-btn--deezer">Se connecter avec Deezer</a>
+  <div :if={@provider} class="bm-card" id="home-resume">
+    <p class="bm-lead">Ta partie est prête, ton service musical est déjà connecté.</p>
+    <div class="bm-row">
+      <.link navigate={~p"/play"} class="bm-btn" id="home-resume-btn">▶ Reprendre la partie</.link>
+      <.link href={~p"/auth/logout"} method="delete" class="bm-btn bm-btn--ghost" id="home-switch">
+        Changer de service
+      </.link>
+    </div>
   </div>
 
-  <p class="bm-lead bm-center" style="font-size:.95rem">
-    Pas de compte sous la main ?
-    <a href="/auth/demo" class="bm-link">Essayer le mode démo</a>
+  <div :if={is_nil(@provider)} class="bm-row" id="home-providers">
+    <a href={~p"/auth/spotify"} class="bm-btn bm-btn--spotify">Se connecter avec Spotify</a>
+    <a href={~p"/auth/deezer"} class="bm-btn bm-btn--deezer">Se connecter avec Deezer</a>
+  </div>
+
+  <p :if={is_nil(@provider)} class="bm-lead bm-center" style="font-size:.95rem">
+    Pas de compte Deezer ou Spotify ?
+    <a href={~p"/auth/demo"} class="bm-link" id="home-demo">Essayer le mode démo</a>
     (titres du classement Deezer)
   </p>
-</div>
+</Layouts.app>

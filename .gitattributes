@@ -1,0 +1,4 @@
+# Scripts shell de la release : toujours en LF (sinon "sh" dans le conteneur Docker).
+rel/overlays/bin/migrate text eol=lf
+rel/overlays/bin/server text eol=lf
+*.bat text eol=crlf

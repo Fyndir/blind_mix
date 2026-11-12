@@ -20,7 +20,6 @@ defmodule BlindMix.Game do
 
   def round_size, do: @round_size
   def round_seconds, do: @round_seconds
-  def round_seconds, do: @round_seconds
   def title_points, do: @title_points
   def artist_points, do: @artist_points
 
@@ -73,7 +72,8 @@ defmodule BlindMix.Game do
   Marque une piste comme trouvée sans saisie (outil de développement).
   Retourne `{game, hits}` comme `guess/2`.
   """
-  def force(%__MODULE__{status: :playing} = game, track_id, kind) when kind in [:title, :artist] do
+  def force(%__MODULE__{status: :playing} = game, track_id, kind)
+      when kind in [:title, :artist] do
     case Enum.find(remaining(game), &(&1.id == track_id)) do
       nil -> {game, []}
       track -> apply_hits(game, [track], kind, points_for(kind))
