@@ -1,0 +1,11 @@
+# Lance l'image de production en local : docker compose up --build
+# Prérequis : un Dockerfile généré par `mix phx.gen.release --docker`, et un fichier .env (voir .env.example).
+services:
+  web:
+    build: .
+    ports:
+      - "4000:4000"
+    env_file: .env
+    environment:
+      PHX_SERVER: "true"
+    restart: unless-stopped
