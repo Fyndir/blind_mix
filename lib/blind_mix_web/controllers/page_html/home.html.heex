@@ -62,4 +62,38 @@
       </div>
       <p class="bm-muted bm-center">Les titres viennent du classement Deezer du moment.</p>
   <% end %>
+
+  <section class="bm-card" id="home-multi">
+    <div>
+      <h2 class="bm-h2">👥 Jouer à plusieurs</h2>
+      <p class="bm-muted">
+        Crée une room et envoie le lien : avec ou sans compte, vos morceaux en commun passent
+        en priorité. Premier qui trouve, premier qui marque !
+      </p>
+    </div>
+    <div class="bm-home-grid">
+      <.form for={%{}} action={~p"/rooms"} id="create-room-form">
+        <button class="bm-btn bm-btn--block" id="create-room">Créer une room</button>
+      </.form>
+      <.form
+        for={@join_form}
+        action={~p"/rooms/join"}
+        method="get"
+        id="join-room-form"
+        class="bm-join bm-auth"
+        style="margin:0"
+      >
+        <.input
+          field={@join_form[:code]}
+          type="text"
+          placeholder="CODE"
+          maxlength="5"
+          autocomplete="off"
+          aria-label="Code de la room"
+          required
+        />
+        <button class="bm-btn bm-btn--ghost">Rejoindre</button>
+      </.form>
+    </div>
+  </section>
 </Layouts.app>

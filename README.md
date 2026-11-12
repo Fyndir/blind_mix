@@ -2,7 +2,7 @@
 
 Un blind test où **5 de tes titres likés jouent en même temps**. Reconnais-les, tape l'artiste ou le titre, et fais disparaître les pistes du mix une à une avant la fin du chrono.
 
-Connecte ton compte **Deezer** ou **Spotify**, ou essaie le **mode démo** (classement Deezer, sans compte). Avec un profil Blind Mix, tes manches sont enregistrées et les titres tirés s'adaptent peu à peu à tes goûts.
+Connecte ton compte **Deezer** ou **Spotify**, ou essaie le **mode démo** (classement Deezer, sans compte). Avec un profil Blind Mix, tes manches sont enregistrées et les titres tirés s'adaptent peu à peu à tes goûts. Et à plusieurs, crée une **room** : vos morceaux en commun passent en priorité, et le premier qui trouve marque.
 
 ![Accueil](docs/screenshots/accueil.webp)
 
@@ -23,6 +23,52 @@ Connecte ton compte **Deezer** ou **Spotify**, ou essaie le **mode démo** (clas
 - **Artiste trouvé** : 2 points, la piste quitte aussi le mix (toutes les pistes de cet artiste, s'il y en a plusieurs).
 - La saisie tolère les accents, la casse, la ponctuation, le « The » initial, les « (feat. …) » et les petites fautes de frappe.
 - Le score se cumule de manche en manche.
+
+## Jouer à plusieurs
+
+Depuis l'accueil, **Créer une room** donne un code court (ex. `ZUXYZ`) et un lien à envoyer. Les autres le rejoignent avec ce code, connectés à leur profil ou en anonyme avec un simple pseudo.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/room-lobby.webp" alt="Salle d'attente d'une room"></td>
+    <td width="50%"><img src="docs/screenshots/room-fin.webp" alt="Fin de manche en room"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Salle d'attente : joueurs, prêts, hôte 👑</em></td>
+    <td align="center"><em>Fin de manche : qui a trouvé quoi</em></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="66%"><img src="docs/screenshots/room-manche.webp" alt="Manche en cours dans une room"></td>
+    <td width="34%"><img src="docs/screenshots/room-manche-mobile.webp" alt="Manche en cours sur mobile"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Manche en cours, vue d'Alice</em></td>
+    <td align="center"><em>La même manche chez Bob, sur mobile</em></td>
+  </tr>
+</table>
+
+- **Mode course** : les 5 mêmes pistes jouent chez tout le monde. Le premier qui trouve marque les points et retire la piste du mix pour tous.
+- **L'hôte** (le créateur, 👑) lance les manches. S'il part, le joueur suivant prend la main.
+- **« Je suis prêt 🔊 »** : ce clic débloque le son du navigateur. Un joueur arrivé en cours de manche peut l'activer à tout moment.
+- Chaque joueur peut connecter Deezer ou Spotify depuis la room pour **ajouter ses likes**, puis revient directement dans la room.
+
+### Choix des morceaux
+
+À chaque manche, la room choisit dans cet ordre ([`lib/blind_mix/rooms/picker.ex`](lib/blind_mix/rooms/picker.ex)) :
+
+1. **Les morceaux en commun** : likés par au moins deux joueurs, d'autant plus prioritaires qu'ils sont partagés. Un même morceau est reconnu entre Deezer et Spotify (même artiste, même titre).
+2. **Les likes de chacun**, à tour de rôle entre les joueurs, pondérés par leurs goûts.
+3. **Les tubes du moment** (classement Deezer) quand ça ne suffit pas, ou quand personne n'a connecté de service.
+
+Pour que la sélection s'affine **même entre anonymes** :
+
+- **Pondération :** chaque joueur, anonyme compris, a un profil de goûts construit pendant la partie. Les artistes que la room reconnaît ressortent plus souvent, comme en solo.
+- **Élargissement :** après chaque manche, la room va chercher d'autres titres des artistes trouvés et d'artistes similaires (API publique Deezer). Le choix s'éloigne peu à peu du seul classement pour coller à ce que la room connaît.
+
+Les joueurs connectés à leur profil retrouvent leurs manches de room dans leur historique (ils n'y sont crédités que des pistes trouvées eux-mêmes), et leurs goûts enregistrés servent dès la première manche.
 
 ## Profil et goûts musicaux
 
@@ -68,7 +114,7 @@ mix phx.server            # http://localhost:4000
 
 - Les e-mails de connexion s'affichent sur [`/dev/mailbox`](http://localhost:4000/dev/mailbox).
 - Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example) : un service n'est proposé que si ses deux clés sont renseignées (sinon son bouton est masqué et son lien direct renvoie à l'accueil).
-- En développement, des boutons 🛠 permettent de simuler une piste trouvée ou de terminer une manche.
+- En développement (ou avec `DEV_TOOLS=true`), des boutons 🛠 permettent de simuler une piste trouvée ou de terminer une manche, en solo comme en room (la piste est alors créditée au joueur qui clique).
 - Après une modification de `config/` ou des dépendances (`mix.lock`), il faut redémarrer `mix phx.server` : sinon chaque page renvoie une erreur 500 « You must restart your server ».
 
 Tests et vérifications avant commit :
@@ -120,4 +166,4 @@ Toutes sont optionnelles (voir [`.env.example`](.env.example)) :
 
 ## Stack
 
-Phoenix 1.8 et LiveView, PostgreSQL (Ecto), authentification par lien magique ou mot de passe (`phx.gen.auth`), Swoosh pour les e-mails, Req pour les API Deezer et Spotify.
+Phoenix 1.8 et LiveView (rooms multijoueur : un processus par room, PubSub), PostgreSQL (Ecto), authentification par lien magique ou mot de passe (`phx.gen.auth`), Swoosh pour les e-mails, Req pour les API Deezer et Spotify.

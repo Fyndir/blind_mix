@@ -49,9 +49,16 @@ export const AudioMix = {
 
   unlock() {
     while (this.pool.length < POOL_SIZE) this.pool.push(new Audio());
+    const playing = new Set(this.active.values());
+
     this.pool.forEach((audio) => {
-      audio.src = SILENCE;
-      audio.play().catch(() => {});
+      if (playing.has(audio)) {
+        // Manche déjà lancée (room multijoueur) : on relance ce que le navigateur a bloqué.
+        if (audio.paused) audio.play().catch(() => {});
+      } else {
+        audio.src = SILENCE;
+        audio.play().catch(() => {});
+      }
     });
     this.audioCtx();
   },

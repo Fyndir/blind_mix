@@ -95,4 +95,29 @@ defmodule BlindMix.TasteTest do
       assert hits > 2000 * 0.18
     end
   end
+
+  describe "record/3 et merge/1 (profils en mémoire des rooms)" do
+    test "record/3 ajoute les résultats d'une manche" do
+      taste =
+        Taste.record(
+          Taste.empty(),
+          [{track("1", "Daft Punk"), :title}, {track("2", "Daft Punk"), :missed}],
+          @now
+        )
+
+      assert taste.artists["daftpunk"] == %{played: 2, found: 1}
+      assert taste.tracks["1"] == %{last_at: @now, last_result: :title}
+      assert taste.tracks["2"].last_result == :missed
+    end
+
+    test "merge/1 additionne les artistes et garde la dernière écoute de chaque titre" do
+      older = Taste.record(Taste.empty(), [{track("1", "Queen"), :title}], hours_ago(48))
+      newer = Taste.record(Taste.empty(), [{track("1", "Queen"), :missed}], hours_ago(1))
+
+      merged = Taste.merge([older, newer])
+      assert merged.artists["queen"] == %{played: 2, found: 1}
+      assert merged.tracks["1"].last_result == :missed
+      assert Taste.merge([]) == Taste.empty()
+    end
+  end
 end

@@ -27,7 +27,7 @@ defmodule BlindMixWeb.GameLive do
         taste: Taste.empty(),
         recorded_round: nil,
         token: token,
-        dev_tools: dev_tools?(),
+        dev_tools: BlindMix.DevTools.enabled?(),
         likes: nil,
         game: nil,
         preparing: false,
@@ -241,12 +241,6 @@ defmodule BlindMixWeb.GameLive do
   end
 
   defp record_round(socket), do: socket
-
-  # Actif en développement (`dev_routes` de dev.exs) ou avec DEV_TOOLS=true (ex. Docker en local).
-  defp dev_tools? do
-    Application.get_env(:blind_mix, :dev_routes, false) == true or
-      System.get_env("DEV_TOOLS") == "true"
-  end
 
   # Les titres sont tirés selon le profil de goûts (voir `BlindMix.Taste`), du plus
   # prioritaire au moins prioritaire : ceux sans extrait sont remplacés par les suivants.

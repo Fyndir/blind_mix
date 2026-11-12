@@ -41,3 +41,8 @@ config :phoenix,
 
 # Faux service musical, sans réseau, pour les tests du jeu.
 config :blind_mix, :extra_providers, %{"fake" => BlindMix.FakeProvider}
+
+# Rooms : musique sans réseau et chrono très lent (les tests terminent les manches en
+# trouvant toutes les pistes).
+config :blind_mix, :room_music, BlindMix.FakeMusic
+config :blind_mix, :room_tick_ms, :timer.minutes(10)

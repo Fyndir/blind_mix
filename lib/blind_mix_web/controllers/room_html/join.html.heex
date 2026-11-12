@@ -1,0 +1,33 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="bm-auth">
+    <div class="bm-center">
+      <p class="bm-kicker">Room</p>
+      <h1 class="bm-title bm-code">{@code}</h1>
+      <p class="bm-muted" style="margin-top:.5rem">
+        Choisis un pseudo : c'est lui que les autres joueurs verront au classement.
+      </p>
+    </div>
+
+    <div class="bm-card">
+      <.form for={@form} id="room-join-form" action={~p"/rooms/#{@code}/join"}>
+        <.input
+          field={@form[:name]}
+          type="text"
+          label="Ton pseudo"
+          placeholder="DJ Mystère"
+          maxlength="24"
+          autocomplete="nickname"
+          required
+          autofocus
+        />
+        <button class="bm-btn bm-btn--block">Entrer dans la room</button>
+      </.form>
+    </div>
+
+    <p :if={is_nil(@current_scope)} class="bm-muted bm-center">
+      Tu joues en anonyme : ta sélection s'affine pendant la partie.
+      <.link navigate={~p"/users/register"} class="bm-link">Crée ton profil</.link>
+      pour garder ton historique d'une partie à l'autre.
+    </p>
+  </div>
+</Layouts.app>

@@ -159,6 +159,31 @@ defmodule BlindMixWeb.Pop do
   .bm-play--missed .bm-play-pts{color:#ff9fb6}
   .bm-empty{padding:1.4rem;border-radius:1.25rem;border:2px dashed rgba(255,255,255,.2);text-align:center;color:#d9cdfa;display:flex;flex-direction:column;align-items:center;gap:.8rem}
 
+  .bm-kicker{margin:0;font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em;color:#b9acdf}
+  .bm-code{font-size:2.6rem;letter-spacing:.14em;font-variant-numeric:tabular-nums}
+  .bm-room-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .bm-players{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.7rem}
+  .bm-player{display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border-radius:1rem;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.12);min-width:0;transition:opacity .2s,border-color .2s,transform .2s;animation:bm-in .35s ease-out}
+  .bm-player--me{border-color:var(--bm-yellow)}
+  .bm-player--away{opacity:.45}
+  .bm-player-avatar{flex:none;width:2.4rem;height:2.4rem;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:1.1rem;color:var(--bm-deep);background:var(--c);box-shadow:0 3px 0 rgba(0,0,0,.3)}
+  .bm-player-text{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+  .bm-player-name{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bm-player-you{font-weight:700;color:#b9acdf}
+  .bm-player-meta{font-size:.8rem;font-weight:700;color:#b9acdf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bm-player-score{flex:none;display:flex;flex-direction:column;align-items:flex-end;font-size:1.5rem;font-weight:900;color:var(--bm-yellow);font-variant-numeric:tabular-nums;line-height:1}
+  .bm-player-delta{font-size:.8rem;color:var(--bm-green);animation:bm-pop .6s cubic-bezier(.2,1.6,.4,1)}
+  .bm-origin{margin-top:.25rem;font-size:.8rem;font-weight:800;opacity:.85}
+  .bm-rank{display:inline-block;margin-left:.6rem;font-weight:800}
+  .bm-feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem;font-weight:700;color:#e9e2ff}
+  .bm-feed li{animation:bm-in .35s ease-out}
+  .bm-feed li:first-child{color:#fff}
+  .bm-feed li:not(:first-child){opacity:.75}
+  .bm-home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}
+  .bm-join{display:flex;flex-direction:row;align-items:flex-start;gap:.6rem;max-width:none;width:auto}
+  .bm-join .fieldset{flex:1;margin:0}
+  .bm-join .input{text-transform:uppercase;letter-spacing:.14em;text-align:center}
+
   @keyframes bm-grow{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}
   @keyframes bm-pop{0%{transform:scale(.85)}40%{transform:scale(1.07) rotate(-1deg)}70%{transform:scale(.98)}100%{transform:scale(1)}}
   @keyframes bm-shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
@@ -167,7 +192,7 @@ defmodule BlindMixWeb.Pop do
   @keyframes bm-bump{0%{transform:scale(1)}40%{transform:scale(1.55);color:#fff}100%{transform:scale(1)}}
   @keyframes bm-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
   @keyframes bm-in{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
-  @media (prefers-reduced-motion: reduce){.bm-round,.bm-artist-bar i,.bm-logo,.bm-tile,.bm-slot,.bm-score-num,.bm-banner,.bm-float,.bm-eq i,.bm-timer--low,.bm-feedback,.bm-form.bm-shake{animation:none!important}}
+  @media (prefers-reduced-motion: reduce){.bm-player,.bm-player-delta,.bm-feed li,.bm-round,.bm-artist-bar i,.bm-logo,.bm-tile,.bm-slot,.bm-score-num,.bm-banner,.bm-float,.bm-eq i,.bm-timer--low,.bm-feedback,.bm-form.bm-shake{animation:none!important}}
   """
 
   def css, do: @css

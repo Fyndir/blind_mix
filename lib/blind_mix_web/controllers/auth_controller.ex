@@ -4,13 +4,15 @@ defmodule BlindMixWeb.AuthController do
   alias BlindMix.Providers
 
   # GET /auth/:provider  ("deezer" ou "spotify") : redirige vers la page d'autorisation OAuth 2.
-  def login(conn, %{"provider" => name}) do
+  # `return_to` (facultatif) : page où revenir après la connexion, ex. une room.
+  def login(conn, %{"provider" => name} = params) do
     case Providers.fetch_available(name) do
       {:ok, provider} ->
         state = 16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
 
         conn
         |> put_session(:oauth_state, state)
+        |> put_session(:oauth_return_to, safe_return_to(params["return_to"]))
         |> redirect(external: provider.authorize_url(state))
 
       :error ->
@@ -25,17 +27,20 @@ defmodule BlindMixWeb.AuthController do
   def callback(conn, %{"provider" => name, "code" => code, "state" => state}) do
     expected = get_session(conn, :oauth_state)
 
-    with {:ok, provider} <- Providers.fetch(name),
+    with {:ok, provider} <- Providers.fetch_available(name),
          true <-
            is_binary(expected) and is_binary(state) and
              Plug.Crypto.secure_compare(state, expected),
          {:ok, token} <- provider.fetch_token(code) do
+      return_to = get_session(conn, :oauth_return_to) || ~p"/play"
+
       conn
       |> delete_session(:oauth_state)
+      |> delete_session(:oauth_return_to)
       |> configure_session(renew: true)
       |> put_session(:provider, name)
       |> put_session(:access_token, token)
-      |> redirect(to: ~p"/play")
+      |> redirect(to: return_to)
     else
       _ -> failure(conn)
     end
@@ -50,6 +55,13 @@ defmodule BlindMixWeb.AuthController do
     |> delete_session(:access_token)
     |> redirect(to: ~p"/")
   end
+
+  # Seules les pages de room sont acceptées : pas de redirection vers un site externe.
+  defp safe_return_to("/rooms/" <> code = path) do
+    if BlindMix.Rooms.normalize_code(code) == code, do: path
+  end
+
+  defp safe_return_to(_path), do: nil
 
   defp failure(conn) do
     conn

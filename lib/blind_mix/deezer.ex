@@ -117,6 +117,32 @@ defmodule BlindMix.Deezer do
     end
   end
 
+  @doc "Titres les plus écoutés d'un artiste (API publique, sans jeton)."
+  def artist_top(artist_id, limit \\ 10) do
+    case api_get("/artist/#{artist_id}/top", nil, limit: limit) do
+      {:ok, %{"data" => data}} when is_list(data) ->
+        {:ok, for(t <- data, t["readable"] != false, playable?(t), do: to_track(t))}
+
+      {:ok, other} ->
+        {:error, {:unexpected, other}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Identifiants d'artistes similaires (API publique, sans jeton)."
+  def related_artists(artist_id, limit \\ 5) do
+    case api_get("/artist/#{artist_id}/related", nil, limit: limit) do
+      {:ok, %{"data" => data}} when is_list(data) -> {:ok, for(a <- data, do: to_string(a["id"]))}
+      {:ok, other} -> {:error, {:unexpected, other}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp playable?(t),
+    do: t["title"] not in [nil, ""] and get_in(t, ["artist", "name"]) not in [nil, ""]
+
   @doc """
   Retrouve un extrait Deezer pour un titre venant d'ailleurs.
   D'abord par ISRC (fiable), puis par recherche artiste + titre (vérifiée sur l'artiste).
@@ -125,9 +151,9 @@ defmodule BlindMix.Deezer do
     isrc = Map.get(track, :isrc)
 
     with true <- is_binary(isrc) and isrc != "",
-         {:ok, %{"preview" => url}} when is_binary(url) and url != "" <-
+         {:ok, %{"preview" => url} = found} when is_binary(url) and url != "" <-
            api_get("/track/isrc:" <> isrc, nil, []) do
-      {:ok, %{track | preview_url: url}}
+      {:ok, track |> Map.put(:preview_url, url) |> Map.put(:artist_id, artist_id(found))}
     else
       _ -> search_preview(track)
     end
@@ -139,9 +165,9 @@ defmodule BlindMix.Deezer do
 
     with {:ok, %{"data" => results}} when is_list(results) <-
            api_get("/search", nil, q: query, limit: 5),
-         %{"preview" => url} when is_binary(url) and url != "" <-
+         %{"preview" => url} = found when is_binary(url) and url != "" <-
            Enum.find(results, &good_result?(&1, track)) do
-      {:ok, %{track | preview_url: url}}
+      {:ok, track |> Map.put(:preview_url, url) |> Map.put(:artist_id, artist_id(found))}
     else
       _ -> {:error, :no_preview}
     end
@@ -177,7 +203,16 @@ defmodule BlindMix.Deezer do
       id: to_string(t["id"]),
       title: t["title_short"] || t["title"],
       artist: get_in(t, ["artist", "name"]),
+      artist_id: artist_id(t),
       preview_url: t["preview"]
     }
+  end
+
+  # Identifiant Deezer de l'artiste : sert à élargir la recherche dans les rooms.
+  defp artist_id(t) do
+    case get_in(t, ["artist", "id"]) do
+      nil -> nil
+      id -> to_string(id)
+    end
   end
 end

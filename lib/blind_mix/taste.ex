@@ -84,12 +84,65 @@ defmodule BlindMix.Taste do
   """
   def pick(tracks, n, %__MODULE__{} = taste, opts \\ []) do
     now = Keyword.get(opts, :now, DateTime.utc_now())
+    weighted_pick(tracks, n, &weight(taste, &1, now), opts)
+  end
+
+  @doc """
+  Tirage pondéré générique : `weight_fun` donne le poids (> 0) de chaque élément.
+  Même méthode et mêmes options (`:random`) que `pick/4`.
+  """
+  def weighted_pick(items, n, weight_fun, opts \\ []) do
     random = Keyword.get(opts, :random, &:rand.uniform/0)
 
-    tracks
-    |> Enum.map(fn track -> {:math.pow(random.(), 1 / weight(taste, track, now)), track} end)
+    items
+    |> Enum.map(fn item -> {:math.pow(random.(), 1 / max(weight_fun.(item), 1.0e-6)), item} end)
     |> Enum.sort_by(&elem(&1, 0), :desc)
-    |> Enum.take(n)
+    |> take(n)
     |> Enum.map(&elem(&1, 1))
+  end
+
+  # `:infinity` : tout ordonner sans couper la liste.
+  defp take(list, :infinity), do: list
+  defp take(list, n), do: Enum.take(list, n)
+
+  @doc """
+  Ajoute des résultats au profil, en mémoire (joueurs anonymes d'une room).
+  `results` : liste de `{track, :title | :artist | :missed}`.
+  """
+  def record(%__MODULE__{} = taste, results, now \\ DateTime.utc_now()) do
+    Enum.reduce(results, taste, fn {track, result}, acc ->
+      found = if result == :missed, do: 0, else: 1
+
+      artists =
+        Map.update(
+          acc.artists,
+          artist_key(track.artist),
+          %{played: 1, found: found},
+          &%{played: &1.played + 1, found: &1.found + found}
+        )
+
+      tracks = Map.put(acc.tracks, track.id, %{last_at: now, last_result: result})
+      %{acc | artists: artists, tracks: tracks}
+    end)
+  end
+
+  @doc """
+  Profil commun à plusieurs joueurs : stats d'artistes additionnées, et pour chaque
+  titre la dernière écoute connue. Sert à choisir les tubes d'une room.
+  """
+  def merge(tastes) do
+    Enum.reduce(tastes, empty(), fn taste, acc ->
+      artists =
+        Map.merge(acc.artists, taste.artists, fn _key, a, b ->
+          %{played: a.played + b.played, found: a.found + b.found}
+        end)
+
+      tracks =
+        Map.merge(acc.tracks, taste.tracks, fn _id, a, b ->
+          if DateTime.after?(b.last_at, a.last_at), do: b, else: a
+        end)
+
+      %__MODULE__{artists: artists, tracks: tracks}
+    end)
   end
 end

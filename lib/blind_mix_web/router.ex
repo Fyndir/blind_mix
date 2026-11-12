@@ -24,6 +24,12 @@ defmodule BlindMixWeb.Router do
     get "/auth/:provider", AuthController, :login
     get "/auth/:provider/callback", AuthController, :callback
     delete "/auth/logout", AuthController, :logout
+
+    # Rooms multijoueur (avant la route LiveView /rooms/:code, pour /rooms/join).
+    post "/rooms", RoomController, :create
+    get "/rooms/join", RoomController, :find
+    get "/rooms/:code/join", RoomController, :join_form
+    post "/rooms/:code/join", RoomController, :join
   end
 
   # Other scopes may use custom stacks.
@@ -71,6 +77,8 @@ defmodule BlindMixWeb.Router do
       on_mount: [{BlindMixWeb.UserAuth, :mount_current_scope}] do
       # Le jeu marche avec ou sans compte ; l'historique n'est gardé que pour les connectés.
       live "/play", GameLive, :play
+      # Rooms multijoueur : ouvertes aux anonymes comme aux joueurs connectés.
+      live "/rooms/:code", RoomLive, :show
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

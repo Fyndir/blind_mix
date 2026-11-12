@@ -8,7 +8,8 @@ defmodule BlindMixWeb.PageController do
       provider: get_session(conn, :provider),
       # Seuls les services dont les clés OAuth sont renseignées sont proposés.
       spotify?: Providers.available?("spotify"),
-      deezer?: Providers.available?("deezer")
+      deezer?: Providers.available?("deezer"),
+      join_form: Phoenix.Component.to_form(%{"code" => ""})
     )
   end
 end

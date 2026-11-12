@@ -141,9 +141,9 @@ defmodule BlindMixWeb.UserAuth do
   #       |> put_session(:preferred_locale, preferred_locale)
   #     end
   #
-  # Blind Mix garde la connexion au service musical (Deezer, Spotify, démo) :
-  # le joueur peut se connecter à son compte avant ou après avoir choisi son service.
-  @kept_session_keys ["provider", "access_token"]
+  # Blind Mix garde la connexion au service musical (Deezer, Spotify, démo) et le pseudo
+  # de room : le joueur peut se connecter à son compte avant ou après.
+  @kept_session_keys ["provider", "access_token", "player_id", "player_name"]
 
   defp renew_session(conn, _user) do
     delete_csrf_token()

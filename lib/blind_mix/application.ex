@@ -12,6 +12,10 @@ defmodule BlindMix.Application do
       {DNSCluster, query: Application.get_env(:blind_mix, :dns_cluster_query) || :ignore},
       BlindMix.Repo,
       {Phoenix.PubSub, name: BlindMix.PubSub},
+      # Tâches de fond (préparation des manches, recherche de titres) et rooms multijoueur.
+      {Task.Supervisor, name: BlindMix.TaskSupervisor},
+      {Registry, keys: :unique, name: BlindMix.Rooms.Registry},
+      {DynamicSupervisor, name: BlindMix.Rooms.Supervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       BlindMixWeb.Endpoint
     ]

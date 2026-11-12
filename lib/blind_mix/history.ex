@@ -16,14 +16,23 @@ defmodule BlindMix.History do
   Enregistre une manche terminée : une ligne `rounds` et une ligne `plays` par piste.
   `provider` est le nom du service (« deezer », « spotify », « demo »).
   """
-  def record_round(%Scope{user: user}, provider, %Game{status: :finished} = game)
+  def record_round(%Scope{} = scope, provider, %Game{status: :finished} = game)
       when is_binary(provider) do
+    results = for track <- game.tracks, do: {track, Map.get(game.found, track.id, :missed)}
+    record_results(scope, provider, results)
+  end
+
+  @doc """
+  Enregistre une manche à partir des résultats d'un joueur : liste de
+  `{track, :title | :artist | :missed}` (utilisé par les rooms multijoueur, où chaque
+  joueur a ses propres résultats sur les mêmes pistes).
+  """
+  def record_results(%Scope{user: user}, provider, results)
+      when is_binary(provider) and results != [] do
     now = DateTime.utc_now(:second)
 
     plays =
-      for track <- game.tracks do
-        result = Map.get(game.found, track.id, :missed)
-
+      for {track, result} <- results do
         %{
           user_id: user.id,
           provider: provider,
