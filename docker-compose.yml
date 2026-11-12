@@ -2,6 +2,10 @@
 # Prérequis : un Dockerfile généré par `mix phx.gen.release --docker`, et un fichier .env (voir .env.example).
 services:
   web:
+    # Image publiée par le CI sur GitHub Container Registry.
+    # `docker compose pull && docker compose up -d` pour lancer la dernière version,
+    # `docker compose up --build` pour reconstruire depuis les sources locales.
+    image: ghcr.io/fyndir/blind_mix:latest
     build: .
     ports:
       - "4000:4000"
