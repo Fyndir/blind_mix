@@ -20,9 +20,12 @@ services:
       # À saisir à la création : URL Neon (postgresql://…?sslmode=require).
       - key: DATABASE_URL
         sync: false
+      # Comptes administrateurs (/admin), séparés par des virgules : à saisir dans Render.
+      - key: ADMIN_EMAILS
+        sync: false
       # Peu de connexions sur l'offre gratuite de Neon et 512 Mo de mémoire ici.
       - key: POOL_SIZE
         value: "5"
       # PHX_HOST est inutile : le domaine onrender.com est lu dans RENDER_EXTERNAL_HOSTNAME.
-      # Optionnels, à ajouter dans le dashboard : ADMIN_EMAILS (accès à /admin), MAIL_PROVIDER, MAIL_API_KEY, MAIL_FROM,
+      # Optionnels, à ajouter dans le dashboard : MAIL_PROVIDER, MAIL_API_KEY, MAIL_FROM,
       # DEEZER_APP_ID, DEEZER_SECRET, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET.
