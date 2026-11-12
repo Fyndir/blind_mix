@@ -28,6 +28,9 @@ config :blind_mix,
 # en prod, l'adaptateur est configuré dans runtime.exs.
 config :blind_mix, BlindMix.Mailer, adapter: Swoosh.Adapters.Local
 
+# Les liens magiques sont envoyés par e-mail (en prod, dépend de MAIL_PROVIDER : runtime.exs).
+config :blind_mix, :mail_enabled, true
+
 # Interface et messages de validation en français.
 config :blind_mix, BlindMixWeb.Gettext, default_locale: "fr"
 

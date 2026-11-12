@@ -78,6 +78,7 @@ FROM ${RUNNER_IMAGE} AS final
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates \
+    tini postgresql \
   && rm -rf /var/lib/apt/lists/*
 
 # Set the locale
@@ -97,11 +98,16 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/blind_mix ./
 
-USER nobody
+# Démarrage autonome : PostgreSQL embarqué et clé secrète générée si l'environnement
+# ne les fournit pas (voir rel/docker/entrypoint.sh). Le script démarre en root pour
+# lancer PostgreSQL, puis exécute l'application sous l'utilisateur `nobody`.
+COPY rel/docker/entrypoint.sh /usr/local/bin/blind-mix-entrypoint
+RUN chmod 755 /usr/local/bin/blind-mix-entrypoint \
+  && chmod 755 /app/bin/server /app/bin/migrate
 
-# If using an environment that doesn't automatically reap zombie processes, it is
-# advised to add an init process such as tini via `apt-get install`
-# above and adding an entrypoint. See https://github.com/krallin/tini for details
-# ENTRYPOINT ["/tini", "--"]
+# Données persistantes : base embarquée et secrets générés.
+VOLUME /data
+EXPOSE 4000
 
-CMD ["/app/bin/server"]
+# tini relaie les signaux (arrêt propre) et récupère les processus zombies.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/blind-mix-entrypoint"]

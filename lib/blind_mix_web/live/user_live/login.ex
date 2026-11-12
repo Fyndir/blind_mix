@@ -20,7 +20,7 @@ defmodule BlindMixWeb.UserLive.Login do
           </p>
         </div>
 
-        <p :if={local_mail_adapter?()} class="bm-note" id="local-mailbox-note">
+        <p :if={@mail? and local_mail_adapter?()} class="bm-note" id="local-mailbox-note">
           <.icon name="hero-envelope-mini" class="size-5 shrink-0" />
           <span>
             Mode développement : les e-mails s'affichent dans <.link
@@ -30,7 +30,7 @@ defmodule BlindMixWeb.UserLive.Login do
           </span>
         </p>
 
-        <div class="bm-card">
+        <div :if={@mail?} class="bm-card">
           <.form
             :let={f}
             for={@form}
@@ -58,50 +58,71 @@ defmodule BlindMixWeb.UserLive.Login do
           </p>
         </div>
 
-        <details class="bm-details">
+        <details :if={@mail?} class="bm-details">
           <summary>Se connecter avec un mot de passe</summary>
-          <div class="bm-card">
-            <.form
-              :let={f}
-              for={@form}
-              id="login_form_password"
-              action={~p"/users/log-in"}
-              phx-submit="submit_password"
-              phx-trigger-action={@trigger_submit}
-            >
-              <.input
-                readonly={!!@current_scope}
-                field={f[:email]}
-                type="email"
-                label="E-mail"
-                autocomplete="username"
-                spellcheck="false"
-                required
-              />
-              <.input
-                field={@form[:password]}
-                type="password"
-                label="Mot de passe"
-                autocomplete="current-password"
-                spellcheck="false"
-              />
-              <div class="bm-stack" style="gap:.8rem">
-                <button
-                  class="bm-btn bm-btn--block"
-                  name={@form[:remember_me].name}
-                  value="true"
-                >
-                  Se connecter et rester connecté
-                </button>
-                <button class="bm-btn bm-btn--ghost bm-btn--block">
-                  Se connecter juste cette fois
-                </button>
-              </div>
-            </.form>
-          </div>
+          <.password_form
+            form={@form}
+            current_scope={@current_scope}
+            trigger_submit={@trigger_submit}
+          />
         </details>
+
+        <.password_form
+          :if={not @mail?}
+          form={@form}
+          current_scope={@current_scope}
+          trigger_submit={@trigger_submit}
+        />
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :form, :any, required: true
+  attr :current_scope, :any, required: true
+  attr :trigger_submit, :boolean, required: true
+
+  defp password_form(assigns) do
+    ~H"""
+    <div class="bm-card">
+      <.form
+        :let={f}
+        for={@form}
+        id="login_form_password"
+        action={~p"/users/log-in"}
+        phx-submit="submit_password"
+        phx-trigger-action={@trigger_submit}
+      >
+        <.input
+          readonly={!!@current_scope}
+          field={f[:email]}
+          type="email"
+          label="E-mail"
+          autocomplete="username"
+          spellcheck="false"
+          required
+        />
+        <.input
+          field={@form[:password]}
+          type="password"
+          label="Mot de passe"
+          autocomplete="current-password"
+          spellcheck="false"
+        />
+        <div class="bm-stack" style="gap:.8rem">
+          <button
+            class="bm-btn bm-btn--block"
+            name={@form[:remember_me].name}
+            value="true"
+          >
+            Se connecter et rester connecté
+          </button>
+          <button class="bm-btn bm-btn--ghost bm-btn--block">
+            Se connecter juste cette fois
+          </button>
+        </div>
+      </.form>
+    </div>
     """
   end
 
@@ -113,13 +134,16 @@ defmodule BlindMixWeb.UserLive.Login do
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok, assign(socket, form: form, trigger_submit: false, mail?: Accounts.mail_enabled?())}
   end
 
   @impl true
   def handle_event("submit_password", _params, socket) do
     {:noreply, assign(socket, :trigger_submit, true)}
   end
+
+  def handle_event("submit_magic", _params, %{assigns: %{mail?: false}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
     if user = Accounts.get_user_by_email(email) do

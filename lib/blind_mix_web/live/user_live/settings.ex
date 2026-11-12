@@ -13,12 +13,14 @@ defmodule BlindMixWeb.UserLive.Settings do
         <div class="bm-center">
           <h1 class="bm-title">Réglages du compte</h1>
           <p class="bm-muted" style="margin-top:.5rem">
-            Ton adresse e-mail et, si tu veux, un mot de passe.
+            {if @mail?,
+              do: "Ton adresse e-mail et, si tu veux, un mot de passe.",
+              else: "Ton mot de passe de connexion."}
             <.link navigate={~p"/profile"} class="bm-link">Retour au profil</.link>
           </p>
         </div>
 
-        <div class="bm-card">
+        <div :if={@mail?} class="bm-card">
           <h2 class="bm-h2">Adresse e-mail</h2>
           <.form
             for={@email_form}
@@ -43,7 +45,11 @@ defmodule BlindMixWeb.UserLive.Settings do
         <div class="bm-card">
           <div>
             <h2 class="bm-h2">Mot de passe</h2>
-            <p class="bm-muted">Facultatif : le lien magique par e-mail marche toujours.</p>
+            <p class="bm-muted">
+              {if @mail?,
+                do: "Facultatif : le lien magique par e-mail marche toujours.",
+                else: "C'est avec lui que tu te connectes à ton profil."}
+            </p>
           </div>
           <.form
             for={@password_form}
@@ -112,6 +118,7 @@ defmodule BlindMixWeb.UserLive.Settings do
     socket =
       socket
       |> assign(:current_email, user.email)
+      |> assign(:mail?, Accounts.mail_enabled?())
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:trigger_submit, false)
@@ -131,6 +138,10 @@ defmodule BlindMixWeb.UserLive.Settings do
 
     {:noreply, assign(socket, email_form: email_form)}
   end
+
+  # Sans service mail, l'adresse ne peut pas être confirmée : formulaire masqué et ignoré.
+  def handle_event("update_email", _params, %{assigns: %{mail?: false}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("update_email", params, socket) do
     %{"user" => user_params} = params

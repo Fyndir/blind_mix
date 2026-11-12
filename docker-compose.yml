@@ -1,5 +1,9 @@
-# Lance l'image de production en local : docker compose up --build
-# Prérequis : un fichier .env (voir .env.example).
+# Blind Mix en production : docker compose up -d
+#
+# Le conteneur est autonome : sans DATABASE_URL il embarque sa propre base PostgreSQL,
+# sans SECRET_KEY_BASE il génère sa clé, sans MAIL_PROVIDER la connexion se fait par
+# mot de passe. Tout est conservé dans le volume `blindmix-data`.
+# Les réglages optionnels se mettent dans .env (voir .env.example).
 #
 # En développement (mix phx.server), seule la base est utile :
 #   docker compose up -d db
@@ -7,24 +11,22 @@ services:
   web:
     # Image publiée par le CI sur GitHub Container Registry.
     # `docker compose pull && docker compose up -d` pour lancer la dernière version,
-    # `docker compose up --build` pour reconstruire depuis les sources locales.
+    # `docker compose up -d --build` pour reconstruire depuis les sources locales.
     image: ghcr.io/fyndir/blind_mix:latest
     build: .
     ports:
       - "4000:4000"
-    env_file: .env
-    environment:
-      PHX_SERVER: "true"
-      DATABASE_URL: ecto://postgres:postgres@db/blind_mix_prod
-    depends_on:
-      db:
-        condition: service_healthy
-    # Applique les migrations au démarrage, puis lance le serveur.
-    command: ["sh", "-c", "/app/bin/migrate && /app/bin/server"]
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - blindmix-data:/data
     restart: unless-stopped
 
+  # Base de développement, utilisée par `mix phx.server` (pas par le conteneur web).
   db:
     image: postgres:17
+    profiles: ["dev"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -40,4 +42,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  blindmix-data:
   pgdata:

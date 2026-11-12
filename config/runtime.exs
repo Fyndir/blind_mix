@@ -75,8 +75,10 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
-  # E-mails de connexion. Sans MAIL_PROVIDER, les liens sont seulement écrits dans les logs
-  # (pratique pour un hébergement perso, à remplacer pour un site public).
+  # E-mails de connexion (liens magiques). Sans MAIL_PROVIDER, aucun e-mail n'est envoyé :
+  # inscription et connexion passent alors par un mot de passe.
+  smtp_port = String.to_integer(System.get_env("SMTP_PORT", "587"))
+
   mailer =
     case System.get_env("MAIL_PROVIDER") do
       "resend" ->
@@ -88,11 +90,33 @@ if config_env() == :prod do
       "postmark" ->
         [adapter: Swoosh.Adapters.Postmark, api_key: System.fetch_env!("MAIL_API_KEY")]
 
+      # Serveur SMTP classique (Gmail avec mot de passe d'application, OVH, Infomaniak...).
+      # Port 465 : SSL direct ; autres ports (587) : STARTTLS obligatoire.
+      "smtp" ->
+        [
+          adapter: Swoosh.Adapters.SMTP,
+          relay: System.fetch_env!("SMTP_HOST"),
+          port: smtp_port,
+          username: System.get_env("SMTP_USERNAME"),
+          password: System.get_env("SMTP_PASSWORD"),
+          auth: if(System.get_env("SMTP_USERNAME"), do: :always, else: :never),
+          ssl: smtp_port == 465,
+          tls: if(smtp_port == 465, do: :never, else: :always),
+          tls_options: [verify: :verify_peer, cacerts: :public_key.cacerts_get(), depth: 3],
+          retries: 2
+        ]
+
       _ ->
-        [adapter: Swoosh.Adapters.Logger, level: :info]
+        nil
     end
 
-  config :blind_mix, BlindMix.Mailer, mailer
+  if mailer do
+    config :blind_mix, BlindMix.Mailer, mailer
+    config :blind_mix, :mail_enabled, true
+  else
+    config :blind_mix, BlindMix.Mailer, adapter: Swoosh.Adapters.Logger, level: :info
+    config :blind_mix, :mail_enabled, false
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -106,7 +130,12 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  # Sans PHX_HOST, le site répond sur localhost (conteneur autonome lancé en local).
+  host =
+    case System.get_env("PHX_HOST", "") |> String.trim() do
+      "" -> "localhost"
+      value -> value
+    end
 
   config :blind_mix, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 

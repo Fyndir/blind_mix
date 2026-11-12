@@ -73,7 +73,8 @@ defmodule BlindMix.MixProject do
       {:phoenix_ecto, "~> 4.6"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
-      {:swoosh, "~> 1.19"}
+      {:swoosh, "~> 1.19"},
+      {:gen_smtp, "~> 1.2"}
     ]
   end
 

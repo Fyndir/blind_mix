@@ -2,3 +2,4 @@
 rel/overlays/bin/migrate text eol=lf
 rel/overlays/bin/server text eol=lf
 *.bat text eol=crlf
+rel/docker/entrypoint.sh text eol=lf

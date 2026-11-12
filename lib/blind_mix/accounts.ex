@@ -80,6 +80,24 @@ defmodule BlindMix.Accounts do
     |> Repo.insert()
   end
 
+  @doc """
+  Vrai si le serveur peut envoyer des e-mails (liens magiques). Sinon, inscription et
+  connexion passent par un mot de passe (voir `register_user_with_password/1`).
+  """
+  def mail_enabled?, do: Application.get_env(:blind_mix, :mail_enabled, true)
+
+  @doc "Inscrit un joueur avec e-mail + mot de passe, compte confirmé d'emblée."
+  def register_user_with_password(attrs) do
+    %User{}
+    |> User.registration_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Changeset du formulaire d'inscription avec mot de passe (validation en direct)."
+  def change_user_registration(%User{} = user, attrs \\ %{}, opts \\ []) do
+    User.registration_changeset(user, attrs, opts)
+  end
+
   ## Settings
 
   @doc """

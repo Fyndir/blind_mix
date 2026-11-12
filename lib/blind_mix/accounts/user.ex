@@ -57,6 +57,17 @@ defmodule BlindMix.Accounts.User do
   end
 
   @doc """
+  Inscription avec mot de passe, utilisée quand aucun service mail n'est configuré :
+  sans e-mail de confirmation possible, le compte est confirmé d'emblée.
+  """
+  def registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> email_changeset(attrs, opts)
+    |> password_changeset(attrs, opts)
+    |> put_change(:confirmed_at, DateTime.utc_now(:second))
+  end
+
+  @doc """
   A user changeset for changing the password.
 
   It is important to validate the length of the password, as long passwords may

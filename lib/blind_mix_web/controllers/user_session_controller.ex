@@ -8,6 +8,11 @@ defmodule BlindMixWeb.UserSessionController do
     create(conn, params, "Compte confirmé, bienvenue !")
   end
 
+  # Inscription avec mot de passe (sans service mail) : connexion juste après la création.
+  def create(conn, %{"_action" => "registered"} = params) do
+    create(conn, params, "Profil créé, bienvenue !")
+  end
+
   def create(conn, params) do
     create(conn, params, "Content de te revoir !")
   end

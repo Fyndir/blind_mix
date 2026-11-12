@@ -15,7 +15,8 @@ APP_PID=""
 PG_BIN=""
 PGDATA=""
 
-log() { echo "[blind-mix] $*"; }
+# Sur stderr : les fonctions appelées dans $(...) ne doivent écrire sur stdout que leur résultat.
+log() { echo "[blind-mix] $*" >&2; }
 
 # Lance une commande sous l'utilisateur `nobody` (l'app n'a pas besoin d'être root).
 as_app() { setpriv --reuid=nobody --regid=nogroup --clear-groups -- "$@"; }
