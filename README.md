@@ -115,7 +115,7 @@ mix phx.server            # http://localhost:4000
 ```
 
 - Les e-mails de connexion s'affichent sur [`/dev/mailbox`](http://localhost:4000/dev/mailbox).
-- Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example) : un service n'est proposé que si ses deux clés sont renseignées (sinon son bouton est masqué et son lien direct renvoie à l'accueil).
+- Le mode démo marche sans aucune configuration. Pour Deezer et Spotify, renseigne les variables d'environnement de [`.env.example`](.env.example) : un service n'est proposé que si ses deux clés sont renseignées (sinon son bouton est masqué et son lien direct renvoie à l'accueil). Lis d'abord les [restrictions d'usage de ces services](#clés-spotify-et-deezer).
 - En développement (ou avec `DEV_TOOLS=true`), des boutons 🛠 permettent de simuler une piste trouvée ou de terminer une manche, en solo comme en room (la piste est alors créditée au joueur qui clique).
 - En développement, sans `ADMIN_EMAILS`, tout compte connecté a accès à [`/admin`](http://localhost:4000/admin) et à la supervision [`/admin/dashboard`](http://localhost:4000/admin/dashboard) (voir [Administration](#administration)).
 - Après une modification de `config/` ou des dépendances (`mix.lock`), il faut redémarrer `mix phx.server` : sinon chaque page renvoie une erreur 500 « You must restart your server ».
@@ -181,6 +181,14 @@ Limites de l'offre gratuite :
 
 #### Clés Spotify et Deezer
 
+> [!WARNING]
+> **Avant de créer une application ou de renseigner des clés, lis les conditions des deux services.** En l'état, Blind Mix ne paraît compatible avec aucune des deux (lecture de novembre 2026, sans avis juridique).
+>
+> - **Spotify** ([Developer Policy](https://developer.spotify.com/policy), section III) interdit de créer des jeux, d'intégrer des contenus d'un autre service, de transmettre des données à un autre service (hors portabilité) et de superposer ses contenus à d'autre audio. Le mode développement n'en dispense pas.
+> - **Deezer** ([conditions de l'API](https://developers.deezer.com/termsofuse), sections I à III) réserve son API aux développeurs approuvés, n'autorise l'écoute des extraits que dans son widget et restreint les jeux fondés sur les enregistrements. Cela concerne probablement aussi **le mode démo et les rooms**, qui utilisent son API publique sans clé. Une dérogation écrite peut être demandée au [support](https://developers.deezer.com/support).
+>
+> La procédure ci-dessous est purement technique : elle ne vaut que si tu as obtenu les autorisations nécessaires.
+
 Les clés se saisissent uniquement dans Render, jamais dans le dépôt. [`render.yaml`](render.yaml) les déclare avec `sync: false` : Render les demande à la création du Blueprint, mais **les ignore quand le Blueprint est mis à jour**. Sur un service existant, ajoute-les à la main.
 
 1. Crée l'application chez le service et déclare son URL de retour, au caractère près (remplace le domaine si le tien diffère) :
@@ -198,7 +206,7 @@ N'importe pas ton `.env` local dans Render : ses `*_REDIRECT_URI` remplaceraient
 Restrictions des services (novembre 2026) :
 
 - **Spotify, en mode développement :** le propriétaire de l'application doit avoir Premium, et [5 utilisateurs au plus](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) peuvent s'en servir, chacun ajouté dans **User Management**. Les autres reçoivent une erreur 403 et le jeu affiche « Impossible de lire tes titres likés ».
-- **Deezer :** la création de nouvelles applications est signalée comme suspendue. Sans application existante, laisse ses variables absentes : le bouton reste masqué. Le mode démo et les extraits audio n'ont besoin d'aucune clé.
+- **Deezer :** la création de nouvelles applications est fermée. Sans application existante, laisse ses variables absentes : le bouton reste masqué. Le mode démo et les extraits audio fonctionnent techniquement sans clé, mais restent concernés par l'avertissement ci-dessus.
 
 ### Variables d'environnement
 
@@ -212,7 +220,7 @@ Toutes sont optionnelles (voir [`.env.example`](.env.example)) :
 | `MAIL_PROVIDER` | `resend`, `brevo`, `postmark` (avec `MAIL_API_KEY`) ou `smtp` (avec `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`). Active la connexion par lien magique. |
 | `MAIL_FROM` | Adresse d'expédition des e-mails |
 | `ADMIN_EMAILS` | E-mails des comptes administrateurs, séparés par des virgules (accès à `/admin`) |
-| `DEEZER_APP_ID`, `DEEZER_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Applications OAuth des services musicaux |
+| `DEEZER_APP_ID`, `DEEZER_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Applications OAuth des services musicaux ([restrictions d'usage](#clés-spotify-et-deezer) à lire avant) |
 
 > Sans service mail, il n'y a pas de « mot de passe oublié » : un joueur qui perd le sien doit recréer un profil.
 
