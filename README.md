@@ -170,7 +170,7 @@ Ce qui est géré automatiquement :
 - **Domaine :** il est lu dans `RENDER_EXTERNAL_HOSTNAME`, donc `PHX_HOST` est inutile.
 - **Clé de session :** `SECRET_KEY_BASE` est générée par Render.
 - **Connexion à Neon :** TLS est activé d'après le `sslmode` de l'URL.
-- **Retours OAuth :** les URL de retour Deezer et Spotify valent `https://<domaine>/auth/<service>/callback`. Déclare-les dans leurs applications.
+- **Retours OAuth :** les URL de retour Deezer et Spotify valent `https://<domaine>/auth/<service>/callback`. Déclare-les dans leurs applications (voir [Clés Spotify et Deezer](#clés-spotify-et-deezer)).
 
 Pour accéder à l'administration, ajoute `ADMIN_EMAILS` (ton e-mail de compte) dans l'onglet **Environment** du service.
 
@@ -178,6 +178,27 @@ Limites de l'offre gratuite :
 
 - Le service s'endort après 15 minutes sans visite. Le réveil prend environ 30 secondes, et les rooms en cours sont perdues.
 - Le disque est effacé à chaque redémarrage, d'où la base externe : sans `DATABASE_URL`, la base embarquée repartirait de zéro.
+
+#### Clés Spotify et Deezer
+
+Les clés se saisissent uniquement dans Render, jamais dans le dépôt. [`render.yaml`](render.yaml) les déclare avec `sync: false` : Render les demande à la création du Blueprint, mais **les ignore quand le Blueprint est mis à jour**. Sur un service existant, ajoute-les à la main.
+
+1. Crée l'application chez le service et déclare son URL de retour, au caractère près (remplace le domaine si le tien diffère) :
+
+   | Service | Où | URL de retour | Variables Render |
+   | --- | --- | --- | --- |
+   | Spotify | [Dashboard](https://developer.spotify.com/dashboard), API « Web API » | `https://blind-mix.onrender.com/auth/spotify/callback` | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` |
+   | Deezer | [Mes applications](https://developers.deezer.com/myapps) | `https://blind-mix.onrender.com/auth/deezer/callback` | `DEEZER_APP_ID`, `DEEZER_SECRET` |
+
+2. Dans Render, ouvre le service, puis **Environment**, ajoute les deux variables du service musical (sans espace ni guillemet) et choisis **Save and deploy**.
+3. Dans les logs, la ligne `[démarrage]` doit lister le service, par exemple `services : demo, spotify`, et son bouton apparaît sur l'accueil. Cela prouve que les clés sont présentes, pas qu'elles sont valides : connecte-toi une fois pour le vérifier.
+
+N'importe pas ton `.env` local dans Render : ses `*_REDIRECT_URI` remplaceraient les URL de retour calculées et renverraient les joueurs vers leur propre machine.
+
+Restrictions des services (novembre 2026) :
+
+- **Spotify, en mode développement :** le propriétaire de l'application doit avoir Premium, et [5 utilisateurs au plus](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) peuvent s'en servir, chacun ajouté dans **User Management**. Les autres reçoivent une erreur 403 et le jeu affiche « Impossible de lire tes titres likés ».
+- **Deezer :** la création de nouvelles applications est signalée comme suspendue. Sans application existante, laisse ses variables absentes : le bouton reste masqué. Le mode démo et les extraits audio n'ont besoin d'aucune clé.
 
 ### Variables d'environnement
 

@@ -23,9 +23,20 @@ services:
       # Comptes administrateurs (/admin), séparés par des virgules : à saisir dans Render.
       - key: ADMIN_EMAILS
         sync: false
+      # Applications OAuth : un service n'est proposé que si ses deux clés sont renseignées.
+      # Attention, Render ne demande les variables `sync: false` qu'à la création du
+      # Blueprint : sur un service existant, les ajouter dans l'onglet Environment.
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: DEEZER_APP_ID
+        sync: false
+      - key: DEEZER_SECRET
+        sync: false
       # Peu de connexions sur l'offre gratuite de Neon et 512 Mo de mémoire ici.
       - key: POOL_SIZE
         value: "5"
       # PHX_HOST est inutile : le domaine onrender.com est lu dans RENDER_EXTERNAL_HOSTNAME.
-      # Optionnels, à ajouter dans le dashboard : MAIL_PROVIDER, MAIL_API_KEY, MAIL_FROM,
-      # DEEZER_APP_ID, DEEZER_SECRET, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET.
+      # DEEZER_REDIRECT_URI et SPOTIFY_REDIRECT_URI aussi : elles sont déduites de ce domaine.
+      # Optionnels, à ajouter dans le dashboard : MAIL_PROVIDER, MAIL_API_KEY, MAIL_FROM.
